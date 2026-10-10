@@ -4,6 +4,8 @@
 
 WebOS.ai is a decoupled, task-agnostic browser runtime. It provides deterministic Chrome DevTools Protocol (CDP) control, zero-token accessibility tree perception, local SQLite episodic memory, and a resilient, privacy-preserving LLM gateway.
 
+📖 **For detailed usage patterns, code examples, and architecture guides, see [USAGE_GUIDE.md](USAGE_GUIDE.md).**
+
 ---
 
 ## Architecture Overview
