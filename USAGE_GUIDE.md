@@ -18,6 +18,7 @@
    - [Privacy Sanitizer & Model Gateway](#privacy-sanitizer--model-gateway)
 5. [Running the Test Suite](#5-running-the-test-suite)
 6. [Packaging & Wheel Distribution](#6-packaging--wheel-distribution)
+7. [Prompting & Browser Automation Guide](#7-prompting--browser-automation-guide)
 
 ---
 
@@ -239,3 +240,60 @@ To package WebOS.ai as a standalone dependency wheel for downstream plugins (e.g
 pip wheel . -w wheels --no-deps
 ```
 This produces `wheels/webos_ai-0.1.0-py3-none-any.whl`.
+
+---
+
+## 7. Prompting & Browser Automation Guide
+
+There are three ways to initiate browser automation through prompting:
+
+### 7.1 Chat Prompts to Antigravity (In this AI Chat)
+You can directly command this AI assistant to run browser actions and inspect pages:
+
+* **To connect and interact with an open Chrome page:**
+  > *"Antigravity, connect to Chrome on port 9222 and tell me what interactive buttons are on the active tab."*
+
+* **To run an end-to-end task on a URL:**
+  > *"Antigravity, navigate to https://example.com/apply, observe the form fields, and fill out the contact inputs."*
+
+* **To use Antigravity's interactive browser tool:**
+  > Type `/browser <URL>` (e.g. `/browser https://news.ycombinator.com`) to have Antigravity browse directly with real-time feedback.
+
+---
+
+### 7.2 Natural Language Intent Prompts in Python Code
+WebOS.ai translates high-level natural language intent prompts into physical browser actions:
+
+```python
+# 1. Inspect page elements
+candidates = await runtime.observe(max_candidates=25)
+
+# 2. Prompt runtime to ground high-level intent:
+submit_target = await runtime.ground_intent("submit application", candidates)
+search_target = await runtime.ground_intent("search query box", candidates)
+
+# 3. Dispatch action with auto-verification:
+if search_target:
+    await runtime.execute_step(
+        intent_description="Search for WebOS",
+        action=BrowserAction(action_type="type", target_candidate_id=search_target.candidate_id, text_value="WebOS.ai"),
+        candidate=search_target
+    )
+```
+
+---
+
+### 7.3 Multi-Provider LLM Gateway with PII Air-Gap
+WebOS.ai routes prompts across local Ollama (`llama3.2:3b`), free cloud pools (Gemini/Groq), or 1-click clipboard prompts, automatically stripping PII:
+
+```python
+from webos.gateway.router import ModelRouter
+
+# Prompt the router with automatic PII redaction and multi-key fallback:
+response = await runtime.router.generate(
+    system_prompt="You are a deterministic web navigation planner.",
+    user_prompt=f"Given these interactive candidates: {candidates}, what is the next step to login?"
+)
+print(response.content)
+```
+
