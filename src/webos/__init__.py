@@ -4,7 +4,7 @@ WebOS.ai — Autonomous Browser Operating Runtime
 
 __version__ = "0.1.0"
 
-from src.types import (
+from webos.types import (
     BoundingBox,
     ElementCandidate,
     BrowserAction,
@@ -12,9 +12,9 @@ from src.types import (
     ObservationRecord,
     ModelResponse,
 )
-from src.runtime import WebRuntime
-from src.gateway.key_ring import KeyRing
-from src.gateway.sanitizer import PIISanitizer
+from webos.runtime import WebRuntime
+from webos.gateway.key_ring import KeyRing
+from webos.gateway.sanitizer import PIISanitizer
 
 __all__ = [
     "WebRuntime",

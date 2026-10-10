@@ -5,10 +5,10 @@ Unit tests for WebOS.ai CDP Client, 0-Token Perception Pruner, and Action Execut
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
-from src.types import ElementCandidate, BoundingBox, BrowserAction
-from src.browser.cdp_client import CDPClient
-from src.browser.perception import PerceptionPruner
-from src.browser.executor import ActionExecutor
+from webos.types import ElementCandidate, BoundingBox, BrowserAction
+from webos.browser.cdp_client import CDPClient
+from webos.browser.perception import PerceptionPruner
+from webos.browser.executor import ActionExecutor
 
 
 # --- CDP Client Tests ---

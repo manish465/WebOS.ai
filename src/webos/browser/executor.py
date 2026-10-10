@@ -5,8 +5,8 @@ Action executor primitives using Chrome DevTools Protocol input dispatch.
 import asyncio
 import logging
 from typing import Optional
-from src.types import BrowserAction, ElementCandidate
-from src.browser.cdp_client import CDPClient
+from webos.types import BrowserAction, ElementCandidate
+from webos.browser.cdp_client import CDPClient
 
 logger = logging.getLogger(__name__)
 

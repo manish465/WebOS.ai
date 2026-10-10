@@ -4,8 +4,8 @@ Zero-Token Perception Pruner using Chrome DevTools Accessibility and BoxModel AP
 
 import logging
 from typing import List, Dict, Any, Optional
-from src.types import ElementCandidate, BoundingBox
-from src.browser.cdp_client import CDPClient
+from webos.types import ElementCandidate, BoundingBox
+from webos.browser.cdp_client import CDPClient
 
 logger = logging.getLogger(__name__)
 

@@ -8,8 +8,8 @@ import datetime
 import logging
 from dataclasses import dataclass, field, asdict
 from typing import Optional, List, Dict, Any, Tuple
-from src.browser.cdp_client import CDPClient
-from src.storage.db import DatabaseManager
+from webos.browser.cdp_client import CDPClient
+from webos.storage.db import DatabaseManager
 
 logger = logging.getLogger(__name__)
 

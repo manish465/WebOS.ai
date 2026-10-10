@@ -5,16 +5,16 @@ Model router managing local inference, cloud failover, and clipboard fallback.
 import logging
 from typing import Optional, Dict, Any
 import httpx
-from src.types import ModelResponse
-from src.gateway.sanitizer import PIISanitizer
-from src.gateway.key_ring import KeyRing
-from src.gateway.providers import (
+from webos.types import ModelResponse
+from webos.gateway.sanitizer import PIISanitizer
+from webos.gateway.key_ring import KeyRing
+from webos.gateway.providers import (
     BaseProvider,
     LocalLlamaProvider,
     GeminiFlashProvider,
     GroqProvider,
 )
-from src.gateway.clipboard import ClipboardPromptGenerator
+from webos.gateway.clipboard import ClipboardPromptGenerator
 
 logger = logging.getLogger(__name__)
 

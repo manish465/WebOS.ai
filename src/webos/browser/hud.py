@@ -5,7 +5,7 @@ Interactive Browser HUD Overlay and Pause/Record/Resume controller in Shadow DOM
 import json
 import logging
 from typing import List, Dict, Any, Optional
-from src.browser.cdp_client import CDPClient
+from webos.browser.cdp_client import CDPClient
 
 logger = logging.getLogger(__name__)
 

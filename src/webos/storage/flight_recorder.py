@@ -5,7 +5,7 @@ Flight recorder telemetry for session traces, error diagnosis, and state diffs.
 import uuid
 import datetime
 from typing import Optional, Dict, Any
-from src.storage.db import DatabaseManager
+from webos.storage.db import DatabaseManager
 
 
 class FlightRecorder:

@@ -5,12 +5,12 @@ Unit tests for WebOS.ai Model Gateway and Privacy Air-Gap.
 import pytest
 import time
 from unittest.mock import AsyncMock, patch, MagicMock
-from src.types import ModelResponse
-from src.gateway.sanitizer import PIISanitizer
-from src.gateway.key_ring import KeyRing
-from src.gateway.clipboard import ClipboardPromptGenerator
-from src.gateway.providers import BaseProvider
-from src.gateway.router import ModelRouter
+from webos.types import ModelResponse
+from webos.gateway.sanitizer import PIISanitizer
+from webos.gateway.key_ring import KeyRing
+from webos.gateway.clipboard import ClipboardPromptGenerator
+from webos.gateway.providers import BaseProvider
+from webos.gateway.router import ModelRouter
 
 
 # --- Sanitizer Tests ---
@@ -131,7 +131,7 @@ async def test_router_cloud_redaction_and_rehydration():
         latency_ms=100.0,
     )
 
-    with patch("src.gateway.router.GeminiFlashProvider.generate", new_callable=AsyncMock) as mock_gen:
+    with patch("webos.gateway.router.GeminiFlashProvider.generate", new_callable=AsyncMock) as mock_gen:
         mock_gen.return_value = mock_cloud_resp
         resp = await router.query(
             prompt="Register john@example.com into system", prefer_local=True

@@ -4,8 +4,8 @@ Episodic observation memory for tracking and retrieving past user inputs.
 
 from typing import Optional, List
 import datetime
-from src.types import ObservationRecord
-from src.storage.db import DatabaseManager
+from webos.types import ObservationRecord
+from webos.storage.db import DatabaseManager
 
 
 class EpisodicMemory:

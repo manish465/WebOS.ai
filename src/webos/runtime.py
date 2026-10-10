@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
 import datetime
 
-from src.types import (
+from webos.types import (
     BoundingBox,
     ElementCandidate,
     BrowserAction,
@@ -15,19 +15,19 @@ from src.types import (
     ObservationRecord,
     ModelResponse,
 )
-from src.storage.db import DatabaseManager
-from src.storage.episodic import EpisodicMemory
-from src.storage.flight_recorder import FlightRecorder
-from src.gateway.key_ring import KeyRing
-from src.gateway.sanitizer import PIISanitizer
-from src.gateway.router import ModelRouter
-from src.gateway.providers import LocalLlamaProvider, BaseProvider
-from src.browser.cdp_client import CDPClient
-from src.browser.perception import PerceptionPruner
-from src.browser.executor import ActionExecutor
-from src.browser.verifier import StateVerifier
-from src.browser.hud import HUDOverlay
-from src.browser.skills import SkillManager, SkillStep, SiteSkill
+from webos.storage.db import DatabaseManager
+from webos.storage.episodic import EpisodicMemory
+from webos.storage.flight_recorder import FlightRecorder
+from webos.gateway.key_ring import KeyRing
+from webos.gateway.sanitizer import PIISanitizer
+from webos.gateway.router import ModelRouter
+from webos.gateway.providers import LocalLlamaProvider, BaseProvider
+from webos.browser.cdp_client import CDPClient
+from webos.browser.perception import PerceptionPruner
+from webos.browser.executor import ActionExecutor
+from webos.browser.verifier import StateVerifier
+from webos.browser.hud import HUDOverlay
+from webos.browser.skills import SkillManager, SkillStep, SiteSkill
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,7 @@ Example demonstration script showing how WebOS.ai is used by external scripts.
 """
 
 import asyncio
-from src import WebRuntime, BrowserAction
+from webos import WebRuntime, BrowserAction
 
 
 async def main():

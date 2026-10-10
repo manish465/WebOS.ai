@@ -4,8 +4,8 @@ Integration tests for master WebRuntime class.
 
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
-from src import WebRuntime, BrowserAction, ElementCandidate, BoundingBox
-from src.types import ModelResponse
+from webos import WebRuntime, BrowserAction, ElementCandidate, BoundingBox
+from webos.types import ModelResponse
 
 
 @pytest.fixture

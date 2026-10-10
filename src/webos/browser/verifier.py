@@ -4,8 +4,8 @@
 
 import logging
 from typing import Optional
-from src.types import BrowserAction, ElementCandidate, VerificationResult
-from src.browser.cdp_client import CDPClient
+from webos.types import BrowserAction, ElementCandidate, VerificationResult
+from webos.browser.cdp_client import CDPClient
 
 logger = logging.getLogger(__name__)
 

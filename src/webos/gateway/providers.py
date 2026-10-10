@@ -7,7 +7,7 @@ import time
 import json
 from typing import Optional, Dict, Any
 import httpx
-from src.types import ModelResponse
+from webos.types import ModelResponse
 
 
 class BaseProvider(ABC):

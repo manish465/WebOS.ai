@@ -5,7 +5,7 @@ Unit tests for WebOS.ai types and storage engine.
 import pytest
 import datetime
 from pathlib import Path
-from src.types import (
+from webos.types import (
     BoundingBox,
     ElementCandidate,
     BrowserAction,
@@ -13,9 +13,9 @@ from src.types import (
     ObservationRecord,
     ModelResponse,
 )
-from src.storage.db import DatabaseManager
-from src.storage.episodic import EpisodicMemory
-from src.storage.flight_recorder import FlightRecorder
+from webos.storage.db import DatabaseManager
+from webos.storage.episodic import EpisodicMemory
+from webos.storage.flight_recorder import FlightRecorder
 
 
 # --- Types Tests ---

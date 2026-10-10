@@ -4,11 +4,11 @@ Unit tests for WebOS.ai State Verifier, HUD Overlay, and Self-Healing Skills.
 
 import pytest
 from unittest.mock import AsyncMock
-from src.types import BrowserAction, ElementCandidate, BoundingBox
-from src.storage.db import DatabaseManager
-from src.browser.verifier import StateVerifier
-from src.browser.hud import HUDOverlay
-from src.browser.skills import SkillManager, SkillStep, SiteSkill
+from webos.types import BrowserAction, ElementCandidate, BoundingBox
+from webos.storage.db import DatabaseManager
+from webos.browser.verifier import StateVerifier
+from webos.browser.hud import HUDOverlay
+from webos.browser.skills import SkillManager, SkillStep, SiteSkill
 
 
 # --- Verifier Tests ---
