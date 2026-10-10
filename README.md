@@ -42,7 +42,14 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
-### 3. Run Verification Tests
+### 3. Launch the Interactive Chat UI (Recommended)
+Double-click `start-webos.bat` or run:
+```powershell
+.\start-webos.ps1
+```
+This opens the WebOS Chat Window at **`http://localhost:8080`** with live browser view, perception inspector, and conversational command bar.
+
+### 4. Run Verification Tests
 ```bash
 pytest -v
 ```
