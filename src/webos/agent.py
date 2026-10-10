@@ -56,16 +56,24 @@ class AutonomousBrowserAgent:
                 }
                 return
 
-        # Check for JobPilot plugin invocation
+        # Check for @jobpilot or JobPilot plugin invocation
         lower_inst = instruction.lower()
-        if any(kw in lower_inst for kw in ["jobpilot", "auto apply", "auto-apply", "apply to job", "tailor resume"]):
-            async for event in self._handle_jobpilot_plugin(instruction):
+        is_jobpilot = "@jobpilot" in lower_inst or any(
+            kw in lower_inst for kw in ["jobpilot", "auto apply", "auto-apply", "apply to job", "tailor resume"]
+        )
+        if is_jobpilot:
+            cleaned_instruction = re.sub(r"@jobpilot\b", "", instruction, flags=re.IGNORECASE).strip()
+            async for event in self._handle_jobpilot_plugin(cleaned_instruction or instruction):
                 yield event
             return
 
+        # Strip optional @browser or @web mention for general browser tasks
+        cleaned_instruction = re.sub(r"@(browser|web)\b", "", instruction, flags=re.IGNORECASE).strip()
+        current_task = cleaned_instruction if cleaned_instruction else instruction
+        lower_inst = current_task.lower()
+
         # General Purpose Step Execution Loop
         steps_taken = 0
-        current_task = instruction
 
         while steps_taken < max_steps:
             steps_taken += 1
@@ -399,12 +407,18 @@ class AutonomousBrowserAgent:
 
             yield {
                 "type": "answer",
+                "plugin": "jobpilot",
                 "content": (
-                    f"### 🎉 JobPilot Automation Finished!\n"
-                    f"- **Target Role**: {job.title} at {job.company}\n"
-                    f"- **ATS Detected**: {result.ats_type}\n"
-                    f"- **Resume**: [{compilation.pdf_path.name}](file:///{str(compilation.pdf_path).replace('\\', '/')}) (Pages: {compilation.page_count})\n"
-                    f"- **Status**: Form autofilled with contact details and resume. **Halted before submit for your final review.**"
+                    f"### 💼 @jobpilot: Application Flow Completed\n\n"
+                    f"| Metric | Details |\n"
+                    f"| :--- | :--- |\n"
+                    f"| **Target Opportunity** | **{job.title}** at **{job.company}** |\n"
+                    f"| **ATS Platform** | `{result.ats_type}` |\n"
+                    f"| **Match Score** | **{int(analysis.match_score * 100)}%** ({len(analysis.matched_skills)} matched technologies) |\n"
+                    f"| **Tailored Resume** | `artifacts/{compilation.pdf_path.name}` (Guaranteed **{compilation.page_count} page**) |\n"
+                    f"| **Submission Safety** | **Review Pause** (Halted before final submission) |\n\n"
+                    f"**Matched Technologies:** {', '.join(analysis.matched_skills) if analysis.matched_skills else 'None'}\n\n"
+                    f"*(The application form has been populated with your dossier data and tailored PDF. The active tab is waiting for your manual review.)*"
                 ),
             }
 

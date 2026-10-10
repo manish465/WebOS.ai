@@ -58,6 +58,9 @@ class PerceptionPruner:
         candidate_id = 1
 
         for node in nodes:
+            if len(candidates) >= max_candidates:
+                break
+
             # Check role
             role_obj = node.get("role", {})
             role = role_obj.get("value", "").lower() if isinstance(role_obj, dict) else str(role_obj).lower()

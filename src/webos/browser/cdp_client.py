@@ -41,7 +41,16 @@ class CDPClient:
             resp.raise_for_status()
             targets = resp.json()
 
-        page_targets = [t for t in targets if t.get("type") == "page"]
+        # Filter out UI self-reference (localhost:8080) and internal chrome pages
+        page_targets = [
+            t for t in targets
+            if t.get("type") == "page"
+            and ":8080" not in t.get("url", "")
+            and not t.get("url", "").startswith("chrome://")
+        ]
+        if not page_targets:
+            page_targets = [t for t in targets if t.get("type") == "page"]
+
         if not page_targets:
             raise RuntimeError(f"No accessible page targets found on {host}:{port}")
 
@@ -64,7 +73,7 @@ class CDPClient:
         return self.target_id
 
     async def send(
-        self, method: str, params: Optional[Dict[str, Any]] = None, timeout: float = 10.0
+        self, method: str, params: Optional[Dict[str, Any]] = None, timeout: float = 18.0
     ) -> Dict[str, Any]:
         """Sends a JSON-RPC command and awaits its matching result."""
         if not self.ws or not self._connected:
