@@ -10,7 +10,7 @@ This roadmap guides the step-by-step implementation of the autonomous, hardware-
 - [x] **Milestone 0: Project Scaffolding & Tooling** (Completed: 2026-10-10)
 - [x] **Milestone 1: Core Domain Models & Persistent SQLite Storage** (Completed: 2026-10-10)
 - [x] **Milestone 2: Resilient Model Gateway & Privacy Air-Gap** (Completed: 2026-10-10)
-- [ ] **Milestone 3: Chrome CDP Engine & 0-Token Perception Pruner**
+- [x] **Milestone 3: Chrome CDP Engine & 0-Token Perception Pruner** (Completed: 2026-10-10)
 - [ ] **Milestone 4: Verification Loop, Interactive HUD & Self-Healing Skills**
 - [ ] **Milestone 5: Unified WebOS.ai Runtime Engine & Verification**
 
