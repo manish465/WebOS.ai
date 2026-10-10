@@ -28,10 +28,15 @@ class ActionExecutor:
                 raise ValueError("Click action requires an ElementCandidate with valid bounding box.")
             return await self._click(cdp, candidate)
 
-        elif action.action_type == "fill":
+        elif action.action_type in ("fill", "type"):
+            val = action.value or action.text_value or ""
             if not candidate:
-                raise ValueError("Fill action requires a target ElementCandidate.")
-            return await self._fill(cdp, candidate, action.value or "")
+                return await self._type_active(cdp, val)
+            return await self._fill(cdp, candidate, val)
+
+        elif action.action_type in ("key_press", "press_enter"):
+            key = action.key_code or action.value or "Enter"
+            return await self._dispatch_key(cdp, key)
 
         elif action.action_type == "upload":
             if not candidate or not action.file_path:
@@ -49,6 +54,26 @@ class ActionExecutor:
 
         else:
             raise NotImplementedError(f"Action type '{action.action_type}' is not supported.")
+
+    async def _type_active(self, cdp: CDPClient, text: str) -> bool:
+        """Types text into the currently active element via CDP keystrokes."""
+        for ch in text:
+            await cdp.send("Input.dispatchKeyEvent", {"type": "keyDown", "text": ch, "unmodifiedText": ch})
+            await cdp.send("Input.dispatchKeyEvent", {"type": "keyUp"})
+        return True
+
+    async def _dispatch_key(self, cdp: CDPClient, key: str) -> bool:
+        """Dispatches key event (e.g. Enter)."""
+        if key.lower() == "enter":
+            await cdp.send(
+                "Input.dispatchKeyEvent",
+                {"type": "rawKeyDown", "windowsVirtualKeyCode": 13, "unmodifiedText": "\r", "text": "\r"},
+            )
+            await cdp.send("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 13})
+        else:
+            await cdp.send("Input.dispatchKeyEvent", {"type": "keyDown", "key": key})
+            await cdp.send("Input.dispatchKeyEvent", {"type": "keyUp", "key": key})
+        return True
 
     async def _click(self, cdp: CDPClient, candidate: ElementCandidate) -> bool:
         """Dispatches native mouse events to the center of the element's box."""

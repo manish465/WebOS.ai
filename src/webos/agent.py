@@ -67,6 +67,40 @@ class AutonomousBrowserAgent:
                 yield event
             return
 
+        # Check for Session Attachment intent
+        if any(kw in lower_inst for kw in [
+            "attach session", "attach real session", "use my session",
+            "use real session", "connect my session", "restore session",
+            "my chrome session", "real session"
+        ]):
+            yield {
+                "type": "thought",
+                "content": "Relaunching Chrome with remote debugging on port 9222 to restore your real profile and logged-in sessions...",
+            }
+            try:
+                from webos.server import launch_chrome_browser
+                res = await launch_chrome_browser(use_main_session=True)
+                if not res.get("success"):
+                    yield {"type": "error", "message": res.get("error", "Failed to launch Chrome.")}
+                    return
+                await asyncio.sleep(2.5)
+                await self.runtime.connect(port=9222)
+                cur_url = await self.runtime.get_current_url()
+                yield {
+                    "type": "answer",
+                    "content": (
+                        "✅ **Attached to Real Chrome Session**\n\n"
+                        "Chrome has been relaunched with remote debugging on port 9222 and all your active sessions restored.\n"
+                        "- **Active profile**: Default user data (Amazon, LinkedIn, Google sessions preserved)\n"
+                        f"- **Current tab**: {cur_url or 'Ready'}\n\n"
+                        "You can now prompt browser automations using your personal logged-in accounts."
+                    ),
+                }
+                return
+            except Exception as e:
+                yield {"type": "error", "message": f"Error attaching real session: {e}"}
+                return
+
         # Strip optional @browser or @web mention for general browser tasks
         cleaned_instruction = re.sub(r"@(browser|web)\b", "", instruction, flags=re.IGNORECASE).strip()
         current_task = cleaned_instruction if cleaned_instruction else instruction
@@ -134,8 +168,8 @@ class AutonomousBrowserAgent:
                             session_note = (
                                 "\n\n> [!NOTE]\n"
                                 "> **LinkedIn Session**: Chrome is currently displaying the Sign In page. "
-                                "Sign into your account in the active Chrome window; WebOS stores your session "
-                                "persistently in `~/.webos/chrome_profile` so you stay logged in for all automations."
+                                "Sign into your account or click **Attach Real Session** in the top navigation "
+                                "to use your existing LinkedIn login."
                             )
                         else:
                             session_note = "\n\n> **Session Active**: Logged into LinkedIn with active session."
@@ -160,47 +194,66 @@ class AutonomousBrowserAgent:
                 "screenshot": screenshot,
             }
 
-            # 3. Search Intent (e.g., "search for mechanical keyboards", "google quantum computing")
+            # 3. Search Intent (e.g., "search for mechanical keyboards", "search for cheap headphones")
             search_query = self._extract_search_query(instruction)
             if search_query:
                 yield {
                     "type": "thought",
-                    "content": f"Identified search query intent: '{search_query}'. Locating search input candidate...",
+                    "content": f"Identified search query intent: '{search_query}'. Locating and submitting search input...",
                 }
-                search_box = await self._find_search_candidate(candidates)
-                if search_box:
-                    yield {
-                        "type": "action",
-                        "step": steps_taken,
-                        "action": "type",
-                        "target": f"#{search_box.candidate_id} ({search_box.name or search_box.role})",
-                        "value": search_query,
-                    }
-                    action = BrowserAction(
-                        action_type="type",
-                        target_candidate_id=search_box.candidate_id,
-                        text_value=search_query,
-                    )
-                    await self.runtime.execute_step(f"Type search query: {search_query}", action, candidate=search_box)
-                    await asyncio.sleep(0.3)
+                yield {
+                    "type": "action",
+                    "step": steps_taken,
+                    "action": "search",
+                    "target": "search_input",
+                    "value": search_query,
+                    "details": f"Submitting search for '{search_query}' on {new_url if 'new_url' in locals() else current_url}",
+                }
 
-                    # Dispatch Enter key
-                    press_enter = BrowserAction(action_type="key_press", key_code="Enter")
-                    await self.runtime.execute_step("Press Enter", press_enter)
-                    await asyncio.sleep(1.5)
+                # Robust multi-engine search execution
+                search_ok = await self.runtime.perform_search(search_query)
+                if not search_ok:
+                    search_box = await self._find_search_candidate(candidates)
+                    if search_box:
+                        action = BrowserAction(
+                            action_type="fill",
+                            target_candidate_id=search_box.candidate_id,
+                            value=search_query,
+                        )
+                        await self.runtime.execute_step(f"Type search query: {search_query}", action, candidate=search_box)
+                        press_enter = BrowserAction(action_type="key_press", key_code="Enter")
+                        await self.runtime.execute_step("Press Enter", press_enter)
+                        search_ok = True
 
+                if search_ok:
+                    # Wait dynamically for search results page to load
                     new_url = await self.runtime.get_current_url()
+                    for _ in range(12):
+                        await asyncio.sleep(0.5)
+                        updated_url = await self.runtime.get_current_url()
+                        if updated_url != new_url and any(k in updated_url for k in ["/s?", "search", "k=", "q="]):
+                            new_url = updated_url
+                            break
+                        new_url = updated_url
+
                     screenshot = await self.runtime.get_screenshot()
+
                     yield {
                         "type": "observation",
                         "step": steps_taken,
                         "url": new_url,
                         "screenshot": screenshot,
-                        "message": f"Submitted search for '{search_query}'.",
+                        "message": f"Submitted search for '{search_query}'. Current page: {new_url}",
                     }
                     yield {
                         "type": "answer",
-                        "content": f"Completed search for **'{search_query}'** on **{new_url}**.",
+                        "content": f"Successfully searched for **'{search_query}'** on **{new_url}**.",
+                    }
+                    return
+                else:
+                    yield {
+                        "type": "error",
+                        "message": f"Could not find an interactive search input to submit '{search_query}'.",
                     }
                     return
 
@@ -341,18 +394,21 @@ class AutonomousBrowserAgent:
         return None
 
     def _extract_search_query(self, text: str) -> Optional[str]:
-        """Extracts search query from commands like 'search for X' or 'google X'."""
+        """Extracts search query from commands like 'search for X', 'find X', 'look up X', or 'google X'."""
         patterns = [
             r"search\s+(?:for\s+)?['\"]?([^'\"?]+)['\"]?",
             r"find\s+['\"]?([^'\"?]+)['\"]?",
+            r"look\s+up\s+['\"]?([^'\"?]+)['\"]?",
             r"google\s+['\"]?([^'\"?]+)['\"]?",
         ]
         for pat in patterns:
             m = re.search(pat, text, re.IGNORECASE)
             if m:
                 query = m.group(1).strip()
+                query = re.sub(r"\s+on\s+[a-zA-Z0-9.-]+$", "", query, flags=re.IGNORECASE).strip()
+                query = query.rstrip(".,;!? ")
                 # filter out navigation commands
-                if not any(query.lower().startswith(x) for x in ["http", "www.", ".com"]):
+                if query and not any(query.lower().startswith(x) for x in ["http", "www.", ".com"]):
                     return query
         return None
 

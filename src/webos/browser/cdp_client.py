@@ -263,23 +263,34 @@ class CDPClient:
                         except Exception as e:
                             logger.error("Error in CDP event callback for %s: %s", method, e)
 
-        except websockets.ConnectionClosed:
-            logger.info("CDP WebSocket connection closed.")
+        except (websockets.ConnectionClosed, asyncio.CancelledError):
+            logger.debug("CDP WebSocket connection closed.")
         except Exception as e:
             logger.error("Unexpected error in CDP listener loop: %s", e)
         finally:
-            self._connected = False
+            if self._listener_task == asyncio.current_task():
+                self._connected = False
 
     async def close(self) -> None:
         """Closes the WebSocket connection cleanly."""
         self._connected = False
-        if self._listener_task:
-            self._listener_task.cancel()
+        task = self._listener_task
+        self._listener_task = None
+        if task and not task.done():
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
         if self.ws:
-            await self.ws.close()
+            try:
+                await self.ws.close()
+            except Exception:
+                pass
             self.ws = None
         # Cancel any pending requests
         for future in self._pending_requests.values():
             if not future.done():
                 future.cancel()
         self._pending_requests.clear()
+

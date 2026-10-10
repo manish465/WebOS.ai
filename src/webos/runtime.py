@@ -123,6 +123,75 @@ class WebRuntime:
         val = await self.cdp.evaluate("window.location.href")
         return str(val or "")
 
+    async def perform_search(self, query: str, max_retries: int = 15, retry_interval: float = 0.4) -> bool:
+        """
+        Locates the primary search input on the active page (supports Amazon, Google,
+        YouTube, Wikipedia, GitHub, and any e-commerce/search site), inputs the query,
+        and submits the search form. Dynamically polls until DOM search element is ready.
+        """
+        import json
+        escaped_query = json.dumps(query)
+        script = f"""
+        (() => {{
+            const query = {escaped_query};
+            const selectors = [
+                '#twotabsearchtextbox',
+                'input[name="field-keywords"]',
+                'textarea[name="q"]',
+                'input[name="q"]',
+                'input[name="search"]',
+                'input[type="search"]',
+                'input[placeholder*="search" i]',
+                'input[aria-label*="search" i]',
+                'input[id*="search" i]',
+                'input[name*="search" i]',
+                'input[type="text"]'
+            ];
+            for (const sel of selectors) {{
+                const el = document.querySelector(sel);
+                if (el && (el.offsetParent !== null || el.offsetWidth > 0 || el.offsetHeight > 0)) {{
+                    el.focus();
+                    el.value = query;
+                    el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                    el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    const form = el.form || el.closest('form');
+                    if (form) {{
+                        if (typeof form.requestSubmit === 'function') {{
+                            form.requestSubmit();
+                        }} else {{
+                            form.submit();
+                        }}
+                    }} else {{
+                        el.dispatchEvent(new KeyboardEvent('keydown', {{ key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }}));
+                        el.dispatchEvent(new KeyboardEvent('keypress', {{ key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }}));
+                        el.dispatchEvent(new KeyboardEvent('keyup', {{ key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }}));
+                    }}
+                    return {{ success: true, selector: sel }};
+                }}
+            }}
+            return {{ success: false }};
+        }})()
+        """
+        for _ in range(max_retries):
+            try:
+                res = await self.cdp.evaluate(script)
+                if res and isinstance(res, dict) and res.get("success"):
+                    # Dispatch native Enter key via CDP to guarantee form submission
+                    try:
+                        await self.cdp.send(
+                            "Input.dispatchKeyEvent",
+                            {"type": "rawKeyDown", "windowsVirtualKeyCode": 13, "unmodifiedText": "\\r", "text": "\\r"},
+                        )
+                        await self.cdp.send("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 13})
+                    except Exception:
+                        pass
+                    return True
+            except Exception:
+                pass
+            await asyncio.sleep(retry_interval)
+
+        return False
+
     async def get_screenshot(self, format: str = "jpeg", quality: int = 70) -> str:
         """Captures a base64-encoded screenshot of the active browser viewport."""
         if not self.cdp.is_connected:

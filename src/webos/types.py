@@ -54,15 +54,19 @@ class ElementCandidate:
 
 @dataclass
 class BrowserAction:
-    action_type: Literal["click", "fill", "select", "upload", "scroll", "wait"]
+    action_type: Literal["click", "fill", "type", "select", "upload", "scroll", "wait", "key_press", "press_enter"]
     target_candidate_id: Optional[int] = None
     value: Optional[str] = None
+    text_value: Optional[str] = None
     file_path: Optional[str] = None
     selector_hint: Optional[str] = None
+    key_code: Optional[str] = None
 
     def validate(self) -> bool:
-        if self.action_type == "fill" and self.value is None:
-            raise ValueError("Action 'fill' requires a 'value'.")
+        if self.value is None and self.text_value is not None:
+            self.value = self.text_value
+        if self.action_type in ("fill", "type") and self.value is None:
+            raise ValueError(f"Action '{self.action_type}' requires a 'value'.")
         if self.action_type == "upload" and self.file_path is None:
             raise ValueError("Action 'upload' requires a 'file_path'.")
         return True

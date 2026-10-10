@@ -502,6 +502,16 @@ HTML_UI = """<!DOCTYPE html>
     }
     .menu-desc { font-size: 11px; color: var(--text-muted); }
 
+    .btn-session {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #34d399;
+    }
+    .btn-session:hover {
+      background: rgba(16, 185, 129, 0.25);
+      border-color: #10b981;
+      color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -518,7 +528,8 @@ HTML_UI = """<!DOCTYPE html>
         <span id="statusDot" class="dot"></span>
         <span id="statusText">Checking Chrome...</span>
       </div>
-      <button class="btn" onclick="launchChrome()">Open Chrome</button>
+      <button class="btn btn-session" onclick="launchMainChrome()" title="Restarts Chrome with remote debugging on port 9222 so your real Amazon/LinkedIn sessions and open tabs are preserved">Attach Real Session</button>
+      <button class="btn" onclick="launchChrome()">Open Window</button>
       <button class="btn btn-accent" onclick="connectChrome()">Connect</button>
       <button class="btn" onclick="openNewTab()">+ New Tab</button>
     </div>
@@ -536,14 +547,17 @@ HTML_UI = """<!DOCTYPE html>
             Autonomous web agent for general browsing, page navigation, and late-binding career autofill.
           </div>
           <div class="hero-chips">
+            <div class="chip" onclick="quickPrompt('open amazon and search for cheap headphones')">
+              🎧 Search Amazon for Headphones
+            </div>
             <div class="chip jobpilot" onclick="quickPrompt('@jobpilot scan active role and auto-apply')">
               💼 @jobpilot: Auto-Apply
             </div>
+            <div class="chip" onclick="quickPrompt('Attach my real Chrome session')">
+              🔑 Attach My Real Session
+            </div>
             <div class="chip" onclick="quickPrompt('Go to news.ycombinator.com and summarize top story')">
               📰 Hacker News Summary
-            </div>
-            <div class="chip" onclick="quickPrompt('Go to wikipedia.org and search for Quantum Computing')">
-              🔍 Search Wikipedia
             </div>
             <div class="chip" onclick="quickPrompt('Go to github.com/trending')">
               ⭐ Trending Repos
@@ -602,9 +616,10 @@ HTML_UI = """<!DOCTYPE html>
 
         if (data.connected) {
           dot.className = 'dot connected';
-          const title = data.title ? (data.title.length > 25 ? data.title.substring(0, 25) + '...' : data.title) : 'Connected (9222)';
-          text.innerText = title;
-          text.title = (data.title || '') + ' - ' + (data.url || '');
+          const isMain = data.session_type === 'main';
+          const title = data.title ? (data.title.length > 20 ? data.title.substring(0, 20) + '...' : data.title) : 'Connected (9222)';
+          text.innerText = title + (isMain ? ' • Real Session' : ' • WebOS Profile');
+          text.title = (data.title || '') + ' - ' + (data.url || '') + (isMain ? ' (Using your real logged-in Chrome profile)' : ' (Using isolated WebOS profile)');
         } else {
           dot.className = 'dot';
           text.innerText = 'Chrome Disconnected';
@@ -617,6 +632,19 @@ HTML_UI = """<!DOCTYPE html>
     }
 
     // Connection & Tab Controls
+    async function launchMainChrome() {
+      if (!confirm("This will restart Chrome with remote debugging on port 9222 so WebOS can use your real logged-in sessions (Amazon, LinkedIn, etc.). Your open tabs will be restored. Continue?")) {
+        return;
+      }
+      appendMessage('copilot', 'Relaunching Chrome with your active session and remote debugging enabled...');
+      await fetch('/api/launch_chrome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ main_session: true })
+      });
+      setTimeout(connectChrome, 2500);
+    }
+
     async function launchChrome() {
       appendMessage('copilot', 'Launching Chrome with remote debugging on port 9222...');
       await fetch('/api/launch_chrome', { method: 'POST' });
@@ -838,6 +866,62 @@ HTML_UI = """<!DOCTYPE html>
 </html>
 """
 
+_CURRENT_SESSION_TYPE: str = "isolated"
+
+
+async def launch_chrome_browser(use_main_session: bool = False) -> Dict[str, Any]:
+    """Launches or relaunches Chrome with remote debugging on port 9222."""
+    global _CURRENT_SESSION_TYPE
+    chrome_paths = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        os.path.expanduser(r"~\AppData\Local\Google\Chrome\Application\chrome.exe"),
+    ]
+    target_path = None
+    for p in chrome_paths:
+        if os.path.exists(p):
+            target_path = p
+            break
+
+    if not target_path:
+        return {"success": False, "error": "Chrome executable not found on host."}
+
+    flags = 0
+    if sys.platform == "win32":
+        flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+
+    if use_main_session:
+        if sys.platform == "win32":
+            subprocess.run(
+                ["powershell", "-Command", "Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force"],
+                capture_output=True,
+            )
+            await asyncio.sleep(1.0)
+        cmd = [
+            target_path,
+            "--remote-debugging-port=9222",
+            "--restore-last-session",
+        ]
+        subprocess.Popen(cmd, creationflags=flags)
+        _CURRENT_SESSION_TYPE = "main"
+        await asyncio.sleep(2.5)
+        return {"success": True, "message": "Relaunched main Chrome with debugging and restored active sessions."}
+
+    debug_dir = os.path.join(os.path.expanduser("~"), ".webos", "chrome_profile")
+    os.makedirs(debug_dir, exist_ok=True)
+    cmd = [
+        target_path,
+        "--remote-debugging-port=9222",
+        f"--user-data-dir={debug_dir}",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "https://www.google.com",
+    ]
+    subprocess.Popen(cmd, creationflags=flags)
+    _CURRENT_SESSION_TYPE = "isolated"
+    await asyncio.sleep(1.5)
+    return {"success": True, "message": "Chrome launched on port 9222 with persistent profile."}
+
 
 class WebOSRequestHandler(BaseHTTPRequestHandler):
     """HTTP Request Handler providing REST API and serving UI."""
@@ -896,8 +980,9 @@ class WebOSRequestHandler(BaseHTTPRequestHandler):
         runtime, agent = get_or_create_runtime()
 
         if self.path == "/api/launch_chrome":
-            future = asyncio.run_coroutine_threadsafe(self._launch_chrome(), _GLOBAL_LOOP)
-            res = future.result(timeout=5.0)
+            use_main = bool(req_data.get("main_session", False))
+            future = asyncio.run_coroutine_threadsafe(self._launch_chrome(use_main_session=use_main), _GLOBAL_LOOP)
+            res = future.result(timeout=10.0)
             self._send_json(res)
             return
 
@@ -964,6 +1049,7 @@ class WebOSRequestHandler(BaseHTTPRequestHandler):
             "connected": True,
             "url": url,
             "title": title,
+            "session_type": _CURRENT_SESSION_TYPE,
         }
 
     async def _get_candidates(self, runtime: WebRuntime) -> Dict[str, Any]:
@@ -985,38 +1071,8 @@ class WebOSRequestHandler(BaseHTTPRequestHandler):
         await runtime.cdp.send("Page.reload")
         return {"success": True}
 
-    async def _launch_chrome(self) -> Dict[str, Any]:
-        chrome_paths = [
-            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-            os.path.expanduser(r"~\AppData\Local\Google\Chrome\Application\chrome.exe"),
-        ]
-        target_path = None
-        for p in chrome_paths:
-            if os.path.exists(p):
-                target_path = p
-                break
-
-        if not target_path:
-            return {"success": False, "error": "Chrome executable not found on host."}
-
-        # Use persistent WebOS profile so logins (LinkedIn, Google, GitHub) are preserved forever
-        debug_dir = os.path.join(os.path.expanduser("~"), ".webos", "chrome_profile")
-        os.makedirs(debug_dir, exist_ok=True)
-        cmd = [
-            target_path,
-            "--remote-debugging-port=9222",
-            f"--user-data-dir={debug_dir}",
-            "--no-first-run",
-            "--no-default-browser-check",
-            "https://www.google.com",
-        ]
-        flags = 0
-        if sys.platform == "win32":
-            flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-        subprocess.Popen(cmd, creationflags=flags)
-        await asyncio.sleep(1.5)
-        return {"success": True, "message": "Chrome launched on port 9222 with persistent profile."}
+    async def _launch_chrome(self, use_main_session: bool = False) -> Dict[str, Any]:
+        return await launch_chrome_browser(use_main_session=use_main_session)
 
     async def _run_chat_task(
         self, agent: AutonomousBrowserAgent, message: str
