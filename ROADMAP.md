@@ -7,7 +7,7 @@ This roadmap guides the step-by-step implementation of the autonomous, hardware-
 
 ## 🗺️ Milestones Overview
 
-- [ ] **Milestone 0: Project Scaffolding & Tooling**
+- [x] **Milestone 0: Project Scaffolding & Tooling** (Completed: 2026-10-10)
 - [ ] **Milestone 1: Core Domain Models & Persistent SQLite Storage**
 - [ ] **Milestone 2: Resilient Model Gateway & Privacy Air-Gap**
 - [ ] **Milestone 3: Chrome CDP Engine & 0-Token Perception Pruner**
