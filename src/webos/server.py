@@ -1,13 +1,12 @@
 """
-WebOS.ai — Copilot-Grade Autonomous Browser Web Server & Chat UI
+WebOS.ai — High-Craft Autonomous Browser Copilot Server & UI
 
-A modern, developer-centric interface inspired by GitHub Copilot and Cursor IDE.
-Features:
-- Copilot-style '@' mention system (@jobpilot, @browser, @dossier)
-- Clean, un-vibe-coded design system (Zinc/Slate theme, no speech bubble tails)
-- Real Markdown rendering with syntax highlighting & tables
-- Live Browser Viewport & 0-Token AXTree Inspector
-- Deterministic CDP control with congestion-free status streaming
+Designed following the /ideate principles:
+- High craft, clean minimalist workspace inspired by Cursor and Perplexity
+- Eliminates visual clutter, fake bloated sidebars, and "vibe-coded" amateur styling
+- Rock-solid Windows console safety (zero non-ASCII emojis in console prints)
+- Native @ mention autocomplete system (@jobpilot, @browser, @dossier)
+- Non-blocking, congestion-free CDP status streaming with Cache-Control headers
 """
 
 from __future__ import annotations
@@ -42,33 +41,30 @@ def get_or_create_runtime() -> tuple[WebRuntime, AutonomousBrowserAgent]:
     return _GLOBAL_RUNTIME, _GLOBAL_AGENT
 
 
-FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#3b82f6"><circle cx="12" cy="12" r="10" stroke="#60a5fa" stroke-width="2" fill="#18181b"/><path d="M12 2a10 10 0 0 1 10 10M12 22a10 10 0 0 1-10-10" stroke="#3b82f6" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="#60a5fa"/></svg>"""
+FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#3b82f6"><rect width="24" height="24" rx="6" fill="#18181b"/><circle cx="12" cy="12" r="5" fill="#3b82f6"/></svg>"""
 
 HTML_UI = """<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WebOS.ai — Autonomous Browser Copilot</title>
+  <title>WebOS Copilot</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.ico">
-  <!-- Lightweight Markdown & Syntax Styler -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     :root {
       --bg: #09090b;
-      --sidebar: #121215;
+      --surface: #121215;
       --card: #18181b;
-      --card-hover: #222227;
+      --card-hover: #202024;
       --border: #27272a;
       --border-subtle: #1f1f23;
-      --text: #fafafa;
+      --text: #f4f4f5;
       --text-muted: #a1a1aa;
       --text-dim: #71717a;
       --accent: #3b82f6;
       --accent-hover: #2563eb;
-      --accent-glow: rgba(59, 130, 246, 0.15);
-      --success: #10b981;
-      --danger: #ef4444;
+      --jobpilot: #10b981;
       --font-mono: "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
 
@@ -76,7 +72,7 @@ HTML_UI = """<!DOCTYPE html>
     body {
       background-color: var(--bg);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       height: 100vh;
       display: flex;
       flex-direction: column;
@@ -84,101 +80,78 @@ HTML_UI = """<!DOCTYPE html>
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Top Navigation Bar */
+    /* Top Navigation */
     header {
-      background: var(--sidebar);
+      background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 10px 20px;
+      padding: 0 24px;
+      height: 52px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      height: 52px;
-      z-index: 50;
+      z-index: 40;
     }
     .brand {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
-    .brand-logo {
-      width: 24px;
-      height: 24px;
-      border-radius: 6px;
-      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    .brand-badge {
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      background: var(--accent);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 800;
-      font-size: 13px;
+      font-weight: 700;
+      font-size: 12px;
       color: #fff;
     }
-    .brand-title {
-      font-size: 15px;
+    .brand-text {
+      font-size: 14px;
       font-weight: 600;
-      letter-spacing: -0.3px;
       color: #fff;
+      letter-spacing: -0.2px;
     }
-    .brand-badge {
+    .brand-sub {
       font-size: 11px;
       font-family: var(--font-mono);
-      background: #27272a;
-      color: #a1a1aa;
-      padding: 2px 7px;
-      border-radius: 4px;
-      border: 1px solid #3f3f46;
-    }
-
-    .header-center {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .plugin-pill {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      background: rgba(59, 130, 246, 0.1);
-      border: 1px solid rgba(59, 130, 246, 0.25);
-      color: #60a5fa;
-      padding: 3px 10px;
-      border-radius: 99px;
-      font-family: var(--font-mono);
-    }
-    .plugin-pill.active {
-      background: rgba(16, 185, 129, 0.1);
-      border-color: rgba(16, 185, 129, 0.25);
-      color: #34d399;
-    }
-
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .status-badge {
-      font-size: 12px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
       color: var(--text-dim);
-      font-family: var(--font-mono);
+      background: #18181b;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
     }
-    .status-dot {
+
+    .header-status {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--text-dim);
+    }
+    .dot {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: var(--danger);
+      background: #ef4444;
     }
-    .status-dot.connected {
-      background: var(--success);
+    .dot.connected {
+      background: #10b981;
       box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
     }
 
     .btn {
-      background: var(--card);
-      color: var(--text);
+      background: #18181b;
       border: 1px solid var(--border);
+      color: var(--text);
       padding: 5px 12px;
       border-radius: 6px;
       font-size: 12px;
@@ -187,272 +160,134 @@ HTML_UI = """<!DOCTYPE html>
       display: flex;
       align-items: center;
       gap: 6px;
-      transition: all 0.15s ease;
+      transition: all 0.15s;
     }
-    .btn:hover { background: var(--card-hover); border-color: #3f3f46; }
-    .btn-primary {
+    .btn:hover { background: #27272a; border-color: #3f3f46; }
+    .btn-accent {
       background: var(--accent);
       border-color: var(--accent);
-      color: white;
+      color: #fff;
     }
-    .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn-accent:hover { background: var(--accent-hover); }
 
-    /* App Split Workspace */
-    .app-workspace {
-      display: grid;
-      grid-template-columns: 500px 1fr;
+    /* Main Container */
+    .main-layout {
       flex: 1;
+      display: flex;
       height: calc(100vh - 52px);
       overflow: hidden;
-    }
-
-    /* Left Panel: Browser Viewport & Inspector */
-    .browser-panel {
-      background: var(--sidebar);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-    .browser-toolbar {
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: #0f0f12;
-    }
-    .nav-btn {
-      background: transparent;
-      border: 1px solid transparent;
-      color: var(--text-muted);
-      cursor: pointer;
-      padding: 4px;
-      border-radius: 4px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .nav-btn:hover { background: #1e1e24; color: #fff; }
-    .address-bar {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      background: #18181b;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 4px 10px;
-      font-size: 12px;
-      font-family: var(--font-mono);
-      color: #93c5fd;
-      gap: 6px;
-    }
-    .address-bar input {
-      background: transparent;
-      border: none;
-      outline: none;
-      color: inherit;
-      font-family: inherit;
-      font-size: inherit;
-      width: 100%;
-    }
-
-    .panel-tabs {
-      display: flex;
-      border-bottom: 1px solid var(--border);
-      background: #121215;
-    }
-    .panel-tab {
-      padding: 8px 16px;
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-dim);
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      transition: all 0.15s;
-    }
-    .panel-tab.active {
-      color: #fff;
-      border-bottom-color: var(--accent);
-      background: rgba(255, 255, 255, 0.02);
-    }
-
-    .tab-content {
-      flex: 1;
-      overflow-y: auto;
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    /* Live Screenshot Viewport */
-    .viewport-container {
-      width: 100%;
-      height: 320px;
-      background: #000;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      position: relative;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .viewport-img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-    }
-    .viewport-overlay {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      background: rgba(0, 0, 0, 0.65);
-      backdrop-filter: blur(4px);
-      padding: 3px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-family: var(--font-mono);
-      color: #34d399;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    /* Candidates Inspector */
-    .inspector-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 6px;
-    }
-    .inspector-title {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .search-filter {
-      width: 100%;
-      background: #18181b;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 6px 10px;
-      color: #fff;
-      font-size: 12px;
-      outline: none;
-      margin-bottom: 8px;
-    }
-    .search-filter:focus { border-color: var(--accent); }
-    .candidates-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      max-height: calc(100vh - 460px);
-      overflow-y: auto;
-    }
-    .candidate-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 8px 10px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-size: 12px;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .candidate-card:hover {
-      background: var(--card-hover);
-      border-color: var(--accent);
-    }
-    .cand-name {
-      font-weight: 500;
-      color: #f3f4f6;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 320px;
-    }
-    .cand-badge {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      background: #27272a;
-      color: #93c5fd;
-    }
-
-    /* Right Panel: Copilot Chat */
-    .chat-panel {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      background: var(--bg);
       position: relative;
     }
-    .chat-header {
-      padding: 12px 24px;
-      border-bottom: 1px solid var(--border);
-      background: #0d0d10;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .chat-header-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: #e4e4e7;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
 
-    .chat-stream {
+    /* Primary Chat Workspace (Centered) */
+    .chat-container {
       flex: 1;
-      overflow-y: auto;
-      padding: 24px 32px;
       display: flex;
       flex-direction: column;
-      gap: 24px;
+      align-items: center;
+      height: 100%;
+      overflow: hidden;
+      position: relative;
     }
 
-    /* Copilot Flat Message Block */
-    .copilot-msg {
-      display: flex;
-      gap: 16px;
-      max-width: 900px;
+    .chat-scroll {
       width: 100%;
-    }
-    .msg-avatar {
-      width: 32px;
-      height: 32px;
-      border-radius: 6px;
+      max-width: 800px;
+      flex: 1;
+      overflow-y: auto;
+      padding: 32px 24px;
       display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    /* Welcome Hero */
+    .hero-view {
+      margin: auto 0;
+      display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: center;
+      text-align: center;
+      gap: 14px;
+    }
+    .hero-title {
+      font-size: 26px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.5px;
+    }
+    .hero-desc {
       font-size: 14px;
-      font-weight: 600;
+      color: var(--text-muted);
+      max-width: 480px;
+      line-height: 1.5;
+    }
+
+    .hero-chips {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 10px;
+      max-width: 600px;
+    }
+    .chip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s;
+    }
+    .chip:hover {
+      border-color: var(--accent);
+      color: #fff;
+      background: var(--card);
+    }
+    .chip.jobpilot {
+      border-color: rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.05);
+    }
+    .chip.jobpilot:hover {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: #10b981;
+      color: #fff;
+    }
+
+    /* Message Rows */
+    .msg-row {
+      display: flex;
+      gap: 14px;
+      width: 100%;
+    }
+    .avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
       flex-shrink: 0;
     }
-    .msg-avatar.user { background: #27272a; color: #fff; border: 1px solid #3f3f46; }
-    .msg-avatar.copilot {
-      background: linear-gradient(135deg, #2563eb, #1d4ed8);
-      color: #fff;
-    }
-    .msg-avatar.jobpilot {
-      background: linear-gradient(135deg, #059669, #047857);
-      color: #fff;
-    }
+    .avatar.user { background: #27272a; color: #fff; }
+    .avatar.copilot { background: var(--accent); color: #fff; }
+    .avatar.jobpilot { background: var(--jobpilot); color: #fff; }
 
-    .msg-body {
+    .msg-content {
       flex: 1;
       line-height: 1.6;
       font-size: 14px;
       color: #e4e4e7;
     }
-    .msg-sender {
+    .msg-author {
       font-size: 13px;
       font-weight: 600;
       color: #fff;
@@ -461,33 +296,24 @@ HTML_UI = """<!DOCTYPE html>
       align-items: center;
       gap: 8px;
     }
-    .plugin-tag {
-      font-size: 11px;
+    .badge-plugin {
+      font-size: 10px;
       font-family: var(--font-mono);
       background: rgba(16, 185, 129, 0.15);
-      border: 1px solid rgba(16, 185, 129, 0.3);
       color: #34d399;
       padding: 1px 6px;
       border-radius: 4px;
+      border: 1px solid rgba(16, 185, 129, 0.3);
     }
 
-    /* Markdown Elements */
-    .msg-body p { margin-bottom: 8px; }
-    .msg-body p:last-child { margin-bottom: 0; }
-    .msg-body h1, .msg-body h2, .msg-body h3 {
-      color: #fff;
-      margin: 12px 0 6px 0;
-      font-weight: 600;
-    }
-    .msg-body h3 { font-size: 15px; }
-    .msg-body ul, .msg-body ol {
-      margin-left: 20px;
-      margin-bottom: 8px;
-    }
-    .msg-body li { margin-bottom: 4px; }
-    .msg-body a { color: #60a5fa; text-decoration: none; }
-    .msg-body a:hover { text-decoration: underline; }
-    .msg-body code {
+    .msg-content p { margin-bottom: 8px; }
+    .msg-content p:last-child { margin-bottom: 0; }
+    .msg-content h1, .msg-content h2, .msg-content h3 { color: #fff; margin: 12px 0 6px 0; }
+    .msg-content h3 { font-size: 15px; }
+    .msg-content ul, .msg-content ol { margin-left: 20px; margin-bottom: 8px; }
+    .msg-content a { color: #60a5fa; text-decoration: none; }
+    .msg-content a:hover { text-decoration: underline; }
+    .msg-content code {
       font-family: var(--font-mono);
       background: #18181b;
       border: 1px solid #27272a;
@@ -496,7 +322,7 @@ HTML_UI = """<!DOCTYPE html>
       font-size: 12px;
       color: #f43f5e;
     }
-    .msg-body pre {
+    .msg-content pre {
       background: #121215;
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -504,113 +330,95 @@ HTML_UI = """<!DOCTYPE html>
       overflow-x: auto;
       margin: 10px 0;
     }
-    .msg-body pre code {
-      background: transparent;
-      border: none;
-      padding: 0;
-      color: #e4e4e7;
-    }
-    .msg-body table {
+    .msg-content pre code { background: transparent; border: none; padding: 0; color: #e4e4e7; }
+    .msg-content table {
       width: 100%;
       border-collapse: collapse;
       margin: 12px 0;
       font-size: 13px;
     }
-    .msg-body th, .msg-body td {
+    .msg-content th, .msg-content td {
       border: 1px solid var(--border);
       padding: 8px 12px;
       text-align: left;
     }
-    .msg-body th { background: #18181b; color: #fff; font-weight: 600; }
-    .msg-body tr:nth-child(even) { background: rgba(255, 255, 255, 0.015); }
+    .msg-content th { background: #18181b; color: #fff; }
 
-    /* Action Steps Timeline */
-    .step-timeline {
+    /* Trace Details */
+    .trace-card {
       margin-top: 10px;
-      background: #121215;
       border: 1px solid var(--border);
       border-radius: 6px;
-      overflow: hidden;
-    }
-    .timeline-header {
-      padding: 6px 12px;
-      background: #18181b;
-      font-size: 11px;
+      background: #121215;
       font-family: var(--font-mono);
-      color: var(--text-muted);
+      font-size: 11px;
+    }
+    .trace-title {
+      padding: 6px 10px;
+      background: #18181b;
+      color: var(--text-dim);
       cursor: pointer;
       display: flex;
-      align-items: center;
       justify-content: space-between;
       user-select: none;
     }
-    .timeline-steps {
+    .trace-body {
       padding: 8px 12px;
       display: flex;
       flex-direction: column;
       gap: 6px;
-      font-family: var(--font-mono);
-      font-size: 11px;
     }
-    .timeline-row {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-    }
-    .row-type {
-      padding: 1px 5px;
+    .trace-row { display: flex; gap: 8px; }
+    .trace-tag {
+      font-size: 9px;
+      padding: 1px 4px;
       border-radius: 3px;
-      font-size: 10px;
-      font-weight: 600;
+      font-weight: 700;
       text-transform: uppercase;
       flex-shrink: 0;
     }
-    .row-type.thought { background: #27272a; color: #a1a1aa; }
-    .row-type.action { background: #1e3a8a; color: #93c5fd; }
-    .row-type.observation { background: #064e3b; color: #6ee7b7; }
-    .row-type.error { background: #7f1d1d; color: #fca5a5; }
+    .trace-tag.thought { background: #27272a; color: #a1a1aa; }
+    .trace-tag.action { background: #1e3a8a; color: #93c5fd; }
+    .trace-tag.observation { background: #064e3b; color: #6ee7b7; }
+    .trace-tag.error { background: #7f1d1d; color: #fca5a5; }
 
-    /* Copilot Prompt Input Area */
-    .chat-footer {
-      padding: 16px 32px 24px 32px;
-      background: var(--bg);
+    /* Input Dock */
+    .chat-dock {
+      width: 100%;
+      max-width: 800px;
+      padding: 0 24px 24px 24px;
       position: relative;
     }
-    .input-wrapper {
-      background: #121215;
+    .dock-box {
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: 12px;
       padding: 10px 14px;
       transition: all 0.15s;
       position: relative;
     }
-    .input-wrapper:focus-within {
+    .dock-box:focus-within {
       border-color: var(--accent);
-      box-shadow: 0 0 0 1px var(--accent), 0 0 16px var(--accent-glow);
+      box-shadow: 0 0 0 1px var(--accent), 0 0 20px rgba(59, 130, 246, 0.12);
     }
 
-    /* Active Mentions Bar */
-    .mentions-attached {
-      display: flex;
-      gap: 6px;
-      margin-bottom: 6px;
-    }
-    .mention-chip {
-      background: rgba(59, 130, 246, 0.15);
-      border: 1px solid rgba(59, 130, 246, 0.3);
-      color: #60a5fa;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      padding: 2px 8px;
-      border-radius: 4px;
-      display: flex;
+    .mention-badge {
+      display: inline-flex;
       align-items: center;
       gap: 4px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      margin-bottom: 6px;
     }
-    .mention-remove { cursor: pointer; color: #93c5fd; font-weight: bold; }
+    .mention-remove { cursor: pointer; color: #a1a1aa; }
     .mention-remove:hover { color: #fff; }
 
-    .prompt-textarea {
+    .dock-textarea {
       width: 100%;
       background: transparent;
       border: none;
@@ -620,25 +428,25 @@ HTML_UI = """<!DOCTYPE html>
       line-height: 1.5;
       resize: none;
       height: 48px;
-      max-height: 200px;
+      max-height: 180px;
     }
 
-    .input-actions {
+    .dock-bar {
       display: flex;
       align-items: center;
       justify-content: space-between;
       margin-top: 6px;
       padding-top: 6px;
-      border-top: 1px solid #1f1f23;
+      border-top: 1px solid var(--border-subtle);
     }
-    .input-hints {
+    .dock-hint {
       font-size: 11px;
       color: var(--text-dim);
       font-family: var(--font-mono);
     }
-    .btn-send {
+    .dock-send {
       background: var(--accent);
-      color: white;
+      color: #fff;
       border: none;
       padding: 6px 14px;
       border-radius: 6px;
@@ -650,214 +458,209 @@ HTML_UI = """<!DOCTYPE html>
       gap: 6px;
       transition: background 0.15s;
     }
-    .btn-send:hover { background: var(--accent-hover); }
-    .btn-send:disabled { background: #27272a; color: #71717a; cursor: not-allowed; }
+    .dock-send:hover { background: var(--accent-hover); }
+    .dock-send:disabled { background: #27272a; color: #71717a; cursor: not-allowed; }
 
-    /* Copilot @ Mention Autocomplete Popover */
-    .mention-popover {
+    /* Floating Autocomplete Popover */
+    .mention-menu {
       position: absolute;
       bottom: calc(100% + 8px);
-      left: 32px;
+      left: 24px;
       background: #18181b;
       border: 1px solid var(--border);
       border-radius: 8px;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
       width: 340px;
-      overflow: hidden;
       display: none;
       z-index: 100;
+      overflow: hidden;
     }
-    .popover-header {
+    .menu-header {
       padding: 8px 12px;
       font-size: 11px;
       font-family: var(--font-mono);
       color: var(--text-dim);
-      border-bottom: 1px solid #27272a;
       background: #121215;
+      border-bottom: 1px solid var(--border);
     }
-    .mention-item {
-      padding: 10px 14px;
+    .menu-item {
+      padding: 9px 12px;
       display: flex;
       flex-direction: column;
       gap: 2px;
       cursor: pointer;
-      border-bottom: 1px solid #1f1f23;
+      border-bottom: 1px solid var(--border-subtle);
       transition: background 0.1s;
     }
-    .mention-item:last-child { border-bottom: none; }
-    .mention-item:hover, .mention-item.selected {
-      background: #27272a;
-    }
-    .mention-tag {
+    .menu-item:last-child { border-bottom: none; }
+    .menu-item:hover, .menu-item.active { background: #27272a; }
+    .menu-tag {
       font-family: var(--font-mono);
       font-weight: 600;
-      font-size: 13px;
-      color: #60a5fa;
+      font-size: 12px;
+      color: #34d399;
     }
-    .mention-desc {
-      font-size: 11px;
-      color: var(--text-muted);
+    .menu-desc { font-size: 11px; color: var(--text-muted); }
+
+    /* Collapsible Browser Drawer */
+    .browser-drawer {
+      width: 440px;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+      animation: slideIn 0.2s ease-out;
+    }
+    @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+    .drawer-header {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0f0f12;
+    }
+    .drawer-title { font-size: 12px; font-weight: 600; color: #fff; font-family: var(--font-mono); }
+    .drawer-close { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 16px; }
+    .drawer-close:hover { color: #fff; }
+
+    .drawer-body {
+      padding: 14px;
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .viewport-box {
+      width: 100%;
+      height: 260px;
+      background: #000;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .viewport-box img { width: 100%; height: 100%; object-fit: contain; }
+    .viewport-pill {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      background: rgba(0,0,0,0.7);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: #34d399;
     }
 
-    /* Suggested Action Chips */
-    .quick-bar {
+    .inspector-box {
       display: flex;
-      gap: 8px;
-      padding: 0 32px 10px 32px;
-      overflow-x: auto;
+      flex-direction: column;
+      gap: 6px;
+      max-height: calc(100vh - 420px);
+      overflow-y: auto;
     }
-    .quick-chip {
-      background: #121215;
+    .cand-row {
+      background: var(--card);
       border: 1px solid var(--border);
-      color: var(--text-muted);
-      padding: 4px 10px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-family: var(--font-mono);
+      border-radius: 5px;
+      padding: 6px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
       cursor: pointer;
-      white-space: nowrap;
-      transition: all 0.15s;
     }
-    .quick-chip:hover {
-      border-color: var(--accent);
-      color: #fff;
-      background: #18181b;
-    }
+    .cand-row:hover { border-color: var(--accent); }
+    .cand-name { color: #f4f4f5; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
+    .cand-role { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
   </style>
 </head>
 <body>
   <!-- Header -->
   <header>
     <div class="brand">
-      <div class="brand-logo">W</div>
-      <div class="brand-title">WebOS.ai</div>
-      <span class="brand-badge">v0.1.0</span>
+      <div class="brand-badge">W</div>
+      <div class="brand-text">WebOS Copilot</div>
+      <span class="brand-sub">Runtime</span>
     </div>
 
-    <div class="header-center">
-      <div class="plugin-pill active">
-        <span>●</span> @jobpilot ready
-      </div>
-      <div class="plugin-pill">
-        <span>●</span> @browser ready
-      </div>
-    </div>
-
-    <div class="header-actions">
-      <div class="status-badge">
-        <span id="statusDot" class="status-dot"></span>
-        <span id="statusLabel">Checking Port 9222...</span>
+    <div class="header-status">
+      <div class="status-indicator">
+        <span id="statusDot" class="dot"></span>
+        <span id="statusText">Checking Chrome...</span>
       </div>
       <button class="btn" onclick="launchChrome()">Launch Chrome</button>
-      <button class="btn btn-primary" onclick="connectChrome()">Connect</button>
+      <button class="btn btn-accent" onclick="connectChrome()">Connect</button>
+      <button id="drawerToggle" class="btn" onclick="toggleDrawer()">
+        <span>Browser View</span>
+        <span id="drawerArrow">▸</span>
+      </button>
     </div>
   </header>
 
-  <!-- Workspace -->
-  <div class="app-workspace">
-    <!-- Left: Browser Inspector & Live View -->
-    <div class="browser-panel">
-      <!-- Toolbar & Address Bar -->
-      <div class="browser-toolbar">
-        <button class="nav-btn" title="Reload" onclick="reloadPage()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-        </button>
-        <div class="address-bar">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          <input id="urlInput" type="text" placeholder="about:blank" onkeydown="if(event.key==='Enter') navigateToUrl()" />
-        </div>
-        <button class="nav-btn" title="Open in New Tab" onclick="window.open(document.getElementById('urlInput').value, '_blank')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
-        </button>
-      </div>
-
-      <!-- Panel Tabs -->
-      <div class="panel-tabs">
-        <div id="tabViewport" class="panel-tab active" onclick="switchTab('viewport')">Live Viewport</div>
-        <div id="tabAXTree" class="panel-tab" onclick="switchTab('axtree')">0-Token AXTree (<span id="candCount">0</span>)</div>
-      </div>
-
-      <!-- Tab Content: Live Viewport -->
-      <div id="contentViewport" class="tab-content">
-        <div class="viewport-container">
-          <img id="viewportImg" class="viewport-img" alt="Connecting to Chrome on port 9222..." />
-          <div class="viewport-overlay">● LIVE CDP</div>
-        </div>
-        <div style="font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); line-height: 1.4;">
-          The viewport streams high-frequency CDP page captures without interfering with the user session.
-        </div>
-      </div>
-
-      <!-- Tab Content: AXTree Inspector -->
-      <div id="contentAXTree" class="tab-content" style="display: none;">
-        <input id="candFilter" class="search-filter" type="text" placeholder="Filter candidates by name or role..." oninput="filterCandidates()" />
-        <div id="candidatesList" class="candidates-list">
-          <div style="font-size: 12px; color: var(--text-dim); padding: 8px;">No elements detected. Connect to Chrome tab.</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Right: Copilot Chat -->
-    <div class="chat-panel">
-      <div class="chat-header">
-        <div class="chat-header-title">
-          <span>Copilot Agent</span>
-          <span style="font-size: 11px; font-weight: normal; color: var(--text-dim);">• Hardware-Aware Autonomous Web Loop</span>
-        </div>
-        <button class="btn" style="font-size: 11px;" onclick="clearChat()">Clear Session</button>
-      </div>
-
-      <!-- Chat Stream -->
-      <div id="chatStream" class="chat-stream">
-        <div class="copilot-msg">
-          <div class="msg-avatar copilot">W</div>
-          <div class="msg-body">
-            <div class="msg-sender">WebOS Copilot</div>
-            <p>Welcome to <strong>WebOS.ai</strong>. I am your autonomous web agent.</p>
-            <p>You can command general browser navigation, or type <code>@jobpilot</code> to invoke the late-binding career alignment & ATS application plugin.</p>
+  <!-- Main Split Layout -->
+  <div class="main-layout">
+    <!-- Chat Workspace -->
+    <div class="chat-container">
+      <div id="chatScroll" class="chat-scroll">
+        <!-- Hero Initial Screen -->
+        <div id="heroView" class="hero-view">
+          <div class="hero-title">What would you like to automate?</div>
+          <div class="hero-desc">
+            Autonomous web agent for general browsing, page navigation, and late-binding career autofill.
+          </div>
+          <div class="hero-chips">
+            <div class="chip jobpilot" onclick="quickPrompt('@jobpilot scan active role and auto-apply')">
+              💼 @jobpilot: Auto-Apply
+            </div>
+            <div class="chip" onclick="quickPrompt('Go to news.ycombinator.com and summarize top story')">
+              📰 Hacker News Summary
+            </div>
+            <div class="chip" onclick="quickPrompt('Go to wikipedia.org and search for Quantum Computing')">
+              🔍 Search Wikipedia
+            </div>
+            <div class="chip" onclick="quickPrompt('Go to github.com/trending')">
+              ⭐ Trending Repos
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Quick Action Chips -->
-      <div class="quick-bar">
-        <div class="quick-chip" onclick="applyPrompt('@jobpilot scan role and auto-apply')">💼 @jobpilot Auto-Apply</div>
-        <div class="quick-chip" onclick="applyPrompt('Go to news.ycombinator.com')">📰 Hacker News</div>
-        <div class="quick-chip" onclick="applyPrompt('Go to wikipedia.org and search for Quantum Computing')">🔍 Search Wikipedia</div>
-        <div class="quick-chip" onclick="applyPrompt('Scroll down')">⬇️ Scroll Down</div>
-      </div>
-
-      <!-- Input Bar with @ Mention Popover -->
-      <div class="chat-footer">
-        <!-- Floating @ Mention Menu -->
-        <div id="mentionPopover" class="mention-popover">
-          <div class="popover-header">COPILOT PLUGINS & AGENTS</div>
-          <div class="mention-item selected" onclick="selectMention('@jobpilot')">
-            <div class="mention-tag">@jobpilot</div>
-            <div class="mention-desc">Career Alignment, 24-Line LaTeX Resume & ATS Auto-Apply (Greenhouse/Lever/Workday)</div>
+      <!-- Docked Input -->
+      <div class="chat-dock">
+        <!-- Autocomplete Menu -->
+        <div id="mentionMenu" class="mention-menu">
+          <div class="menu-header">AVAILABLE PLUGINS & AGENTS</div>
+          <div class="menu-item active" onclick="chooseMention('@jobpilot')">
+            <div class="menu-tag">@jobpilot</div>
+            <div class="menu-desc">Career Alignment, 24-Line LaTeX Resume & ATS Auto-Apply (Greenhouse/Lever/Workday)</div>
           </div>
-          <div class="mention-item" onclick="selectMention('@browser')">
-            <div class="mention-tag">@browser</div>
-            <div class="mention-desc">Autonomous Web Navigation, 0-Token AXTree Perception & DOM Actions</div>
-          </div>
-          <div class="mention-item" onclick="selectMention('@dossier')">
-            <div class="mention-tag">@dossier</div>
-            <div class="mention-desc">Inspect Master Career Dossier skills and metrics</div>
+          <div class="menu-item" onclick="chooseMention('@browser')">
+            <div class="menu-tag">@browser</div>
+            <div class="menu-desc">Autonomous Web Navigation, 0-Token AXTree Perception & DOM Execution</div>
           </div>
         </div>
 
-        <div class="input-wrapper">
-          <div id="attachedMentions" class="mentions-attached" style="display: none;"></div>
+        <div class="dock-box">
+          <div id="attachedMention" style="display: none;"></div>
           <textarea
             id="promptInput"
-            class="prompt-textarea"
-            placeholder="Type a task, or write '@jobpilot' to run career automation... (Press Enter to send)"
-            onkeydown="handleKeyDown(event)"
-            oninput="handleInput(event)"
+            class="dock-textarea"
+            placeholder="Type any task, or write '@jobpilot' for career automation... (Press Enter to send)"
+            onkeydown="onInputKeyDown(event)"
+            oninput="onInputChange(event)"
           ></textarea>
-          <div class="input-actions">
-            <div class="input-hints">Tip: Type <strong>@</strong> to mention plugins • Shift+Enter for newline</div>
-            <button id="sendBtn" class="btn-send" onclick="submitPrompt()">
+          <div class="dock-bar">
+            <div class="dock-hint">Tip: Type <strong>@</strong> for plugins • Shift+Enter for newline</div>
+            <button id="sendBtn" class="dock-send" onclick="sendPrompt()">
               <span>Run Task</span>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </button>
@@ -865,224 +668,215 @@ HTML_UI = """<!DOCTYPE html>
         </div>
       </div>
     </div>
+
+    <!-- Collapsible Browser Drawer -->
+    <div id="browserDrawer" class="browser-drawer">
+      <div class="drawer-header">
+        <div class="drawer-title">LIVE CHROME VIEWPORT</div>
+        <button class="drawer-close" onclick="toggleDrawer()">✕</button>
+      </div>
+      <div class="drawer-body">
+        <div class="viewport-box">
+          <img id="drawerImg" alt="Waiting for Chrome connection..." />
+          <div class="viewport-pill">● PORT 9222</div>
+        </div>
+        <div style="font-size: 11px; font-family: var(--font-mono); color: var(--text-dim);">
+          URL: <span id="drawerUrl" style="color: #60a5fa;">about:blank</span>
+        </div>
+        <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">
+          0-Token Candidates (<span id="candCount">0</span>)
+        </div>
+        <div id="inspectorList" class="inspector-box">
+          <div style="font-size: 12px; color: var(--text-dim); padding: 8px;">No elements detected. Connect to Chrome tab.</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
-    let allCandidates = [];
-    let currentMention = null;
+    let activeMention = null;
+    let isDrawerOpen = false;
 
-    // Switch between Live Viewport and AXTree Inspector tabs
-    function switchTab(tab) {
-      document.getElementById('tabViewport').className = 'panel-tab' + (tab === 'viewport' ? ' active' : '');
-      document.getElementById('tabAXTree').className = 'panel-tab' + (tab === 'axtree' ? ' active' : '');
-      document.getElementById('contentViewport').style.display = tab === 'viewport' ? 'flex' : 'none';
-      document.getElementById('contentAXTree').style.display = tab === 'axtree' ? 'flex' : 'none';
-      if (tab === 'axtree') {
-        fetchCandidates();
-      }
+    // Toggle Drawer
+    function toggleDrawer() {
+      isDrawerOpen = !isDrawerOpen;
+      document.getElementById('browserDrawer').style.display = isDrawerOpen ? 'flex' : 'none';
+      document.getElementById('drawerArrow').innerText = isDrawerOpen ? '◂' : '▸';
+      if (isDrawerOpen) refreshInspector();
     }
 
-    // Status polling (lightweight, zero-congestion)
-    async function updateStatus() {
+    // Status polling
+    async function pollStatus() {
       try {
         const res = await fetch('/api/status');
+        if (!res.ok) throw new Error('Server not reachable');
         const data = await res.json();
         const dot = document.getElementById('statusDot');
-        const label = document.getElementById('statusLabel');
-        const urlInput = document.getElementById('urlInput');
+        const text = document.getElementById('statusText');
 
         if (data.connected) {
-          dot.className = 'status-dot connected';
-          label.innerText = 'Connected (9222)';
-          if (document.activeElement !== urlInput && data.url) {
-            urlInput.value = data.url;
-          }
+          dot.className = 'dot connected';
+          text.innerText = 'Connected (9222)';
+          document.getElementById('drawerUrl').innerText = data.url || 'about:blank';
           if (data.screenshot) {
-            document.getElementById('viewportImg').src = 'data:image/jpeg;base64,' + data.screenshot;
-          }
-          if (data.candidate_count !== undefined) {
-            document.getElementById('candCount').innerText = data.candidate_count;
+            document.getElementById('drawerImg').src = 'data:image/jpeg;base64,' + data.screenshot;
           }
         } else {
-          dot.className = 'status-dot';
-          label.innerText = 'Disconnected';
+          dot.className = 'dot';
+          text.innerText = 'Disconnected';
         }
       } catch (err) {
-        console.error(err);
+        document.getElementById('statusDot').className = 'dot';
+        document.getElementById('statusText').innerText = 'Server offline';
       }
     }
 
-    async function fetchCandidates() {
+    async function refreshInspector() {
       try {
         const res = await fetch('/api/candidates');
         const data = await res.json();
-        allCandidates = data.candidates || [];
-        document.getElementById('candCount').innerText = allCandidates.length;
-        renderCandidates(allCandidates);
+        const list = document.getElementById('inspectorList');
+        const count = document.getElementById('candCount');
+        const cands = data.candidates || [];
+        count.innerText = cands.length;
+
+        if (cands.length === 0) {
+          list.innerHTML = '<div style="font-size:12px;color:var(--text-dim);padding:8px;">No candidates detected.</div>';
+          return;
+        }
+
+        list.innerHTML = cands.map(c => `
+          <div class="cand-row" onclick="insertCandidate('${c.name || c.role}')">
+            <div class="cand-name">${escapeHtml(c.name || 'unnamed')}</div>
+            <div class="cand-role">#${c.id} ${c.role.toUpperCase()}</div>
+          </div>
+        `).join('');
       } catch (e) {
         console.error(e);
       }
     }
 
-    function renderCandidates(cands) {
-      const list = document.getElementById('candidatesList');
-      if (!cands || cands.length === 0) {
-        list.innerHTML = '<div style="font-size:12px;color:var(--text-dim);padding:8px;">No candidates matching filter.</div>';
-        return;
-      }
-      list.innerHTML = cands.map(c => `
-        <div class="candidate-card" onclick="insertCandidateTarget('${c.name || c.role}')">
-          <div class="cand-name">${escapeHtml(c.name || 'unnamed')}</div>
-          <div class="cand-badge">#${c.id} ${c.role.toUpperCase()}</div>
-        </div>
-      `).join('');
-    }
-
-    function filterCandidates() {
-      const q = document.getElementById('candFilter').value.toLowerCase().trim();
-      if (!q) {
-        renderCandidates(allCandidates);
-        return;
-      }
-      const filtered = allCandidates.filter(c =>
-        (c.name && c.name.toLowerCase().includes(q)) ||
-        (c.role && c.role.toLowerCase().includes(q))
-      );
-      renderCandidates(filtered);
-    }
-
-    function insertCandidateTarget(name) {
+    function insertCandidate(name) {
       const input = document.getElementById('promptInput');
       input.value = `Click on "${name}"`;
       input.focus();
     }
 
-    // Actions
+    // Connection Controls
     async function launchChrome() {
-      appendCopilotMsg("Launching Google Chrome with remote debugging on port 9222...");
+      appendMessage('copilot', 'Launching Chrome with remote debugging on port 9222...');
       await fetch('/api/launch_chrome', { method: 'POST' });
       setTimeout(connectChrome, 2000);
     }
 
     async function connectChrome() {
-      appendCopilotMsg("Connecting to Chrome DevTools Protocol WebSocket...");
-      const res = await fetch('/api/connect', { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        appendCopilotMsg("Connected successfully to Chrome target.");
-        updateStatus();
-      } else {
-        appendCopilotMsg("Connection failed: " + data.error);
+      appendMessage('copilot', 'Connecting to Chrome DevTools Protocol...');
+      try {
+        const res = await fetch('/api/connect', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          appendMessage('copilot', 'Successfully connected to Chrome session.');
+          pollStatus();
+        } else {
+          appendMessage('copilot', 'Connection failed: ' + (data.error || 'Check Chrome is running.'));
+        }
+      } catch (err) {
+        appendMessage('copilot', 'Server connection error: ' + err);
       }
     }
 
-    async function reloadPage() {
-      await fetch('/api/reload', { method: 'POST' });
-      setTimeout(updateStatus, 800);
-    }
-
-    async function navigateToUrl() {
-      const url = document.getElementById('urlInput').value.trim();
-      if (!url) return;
-      applyPrompt('Go to ' + url);
-    }
-
-    // @ Mention Handling
-    function handleInput(e) {
+    // @ Mention Logic
+    function onInputChange(e) {
       const val = e.target.value;
-      const popover = document.getElementById('mentionPopover');
-      if (val.endsWith('@') || val.includes('@job') || val.includes('@bro') || val.includes('@dos')) {
-        popover.style.display = 'block';
+      const menu = document.getElementById('mentionMenu');
+      if (val.endsWith('@') || val.includes('@job') || val.includes('@bro')) {
+        menu.style.display = 'block';
       } else {
-        popover.style.display = 'none';
+        menu.style.display = 'none';
       }
     }
 
-    function handleKeyDown(e) {
-      const popover = document.getElementById('mentionPopover');
-      if (popover.style.display === 'block') {
+    function onInputKeyDown(e) {
+      const menu = document.getElementById('mentionMenu');
+      if (menu.style.display === 'block') {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
-          const items = Array.from(popover.querySelectorAll('.mention-item'));
-          let selIdx = items.findIndex(el => el.classList.contains('selected'));
-          items[selIdx].classList.remove('selected');
-          if (e.key === 'ArrowDown') selIdx = (selIdx + 1) % items.length;
-          else selIdx = (selIdx - 1 + items.length) % items.length;
-          items[selIdx].classList.add('selected');
+          const items = Array.from(menu.querySelectorAll('.menu-item'));
+          let idx = items.findIndex(el => el.classList.contains('active'));
+          items[idx].classList.remove('active');
+          if (e.key === 'ArrowDown') idx = (idx + 1) % items.length;
+          else idx = (idx - 1 + items.length) % items.length;
+          items[idx].classList.add('active');
           return;
         }
         if (e.key === 'Enter' || e.key === 'Tab') {
           e.preventDefault();
-          const sel = popover.querySelector('.mention-item.selected');
+          const sel = menu.querySelector('.menu-item.active');
           if (sel) {
-            const tag = sel.querySelector('.mention-tag').innerText;
-            selectMention(tag);
+            chooseMention(sel.querySelector('.menu-tag').innerText);
           }
           return;
         }
         if (e.key === 'Escape') {
-          popover.style.display = 'none';
+          menu.style.display = 'none';
           return;
         }
       }
 
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        submitPrompt();
+        sendPrompt();
       }
     }
 
-    function selectMention(tag) {
+    function chooseMention(tag) {
+      document.getElementById('mentionMenu').style.display = 'none';
+      activeMention = tag;
+      const badge = document.getElementById('attachedMention');
+      badge.style.display = 'inline-flex';
+      badge.className = 'mention-badge';
+      badge.innerHTML = `<span>${tag}</span><span class="mention-remove" onclick="removeMention()">&times;</span>`;
+
       const input = document.getElementById('promptInput');
-      document.getElementById('mentionPopover').style.display = 'none';
-      currentMention = tag;
-
-      // Add attached mention pill
-      const bar = document.getElementById('attachedMentions');
-      bar.style.display = 'flex';
-      bar.innerHTML = `
-        <div class="mention-chip">
-          <span>${tag}</span>
-          <span class="mention-remove" onclick="removeMention()">&times;</span>
-        </div>
-      `;
-
-      // Remove raw @ from input if typed
       input.value = input.value.replace(/@[a-zA-Z0-9_-]*$/, '').trim();
       input.focus();
     }
 
     function removeMention() {
-      currentMention = null;
-      const bar = document.getElementById('attachedMentions');
-      bar.style.display = 'none';
-      bar.innerHTML = '';
+      activeMention = null;
+      const badge = document.getElementById('attachedMention');
+      badge.style.display = 'none';
+      badge.innerHTML = '';
     }
 
-    function applyPrompt(text) {
+    function quickPrompt(text) {
       const input = document.getElementById('promptInput');
       input.value = text;
-      submitPrompt();
+      sendPrompt();
     }
 
     // Submit Prompt
-    async function submitPrompt() {
+    async function sendPrompt() {
       const input = document.getElementById('promptInput');
       let text = input.value.trim();
-      if (!text && !currentMention) return;
+      if (!text && !activeMention) return;
 
-      if (currentMention && !text.includes(currentMention)) {
-        text = currentMention + ' ' + text;
+      if (activeMention && !text.includes(activeMention)) {
+        text = activeMention + ' ' + text;
       }
 
       input.value = '';
       removeMention();
 
-      // Append User message
-      appendUserMsg(text);
+      // Hide hero view once conversation begins
+      const hero = document.getElementById('heroView');
+      if (hero) hero.style.display = 'none';
 
-      const sendBtn = document.getElementById('sendBtn');
-      sendBtn.disabled = true;
+      // Append User message
+      appendMessage('user', text);
+
+      const btn = document.getElementById('sendBtn');
+      btn.disabled = true;
 
       try {
         const res = await fetch('/api/chat', {
@@ -1092,55 +886,41 @@ HTML_UI = """<!DOCTYPE html>
         });
         const data = await res.json();
         const isJobPilot = text.includes('@jobpilot');
-        appendCopilotMsg(data.answer || "Action completed.", data.events || [], isJobPilot);
-        updateStatus();
+        appendMessage(isJobPilot ? 'jobpilot' : 'copilot', data.answer || "Completed.", data.events || []);
+        pollStatus();
       } catch (err) {
-        appendCopilotMsg("Error executing automation: " + err);
+        appendMessage('copilot', '⚠️ Automation error: ' + err);
       } finally {
-        sendBtn.disabled = false;
+        btn.disabled = false;
       }
     }
 
-    function appendUserMsg(text) {
-      const stream = document.getElementById('chatStream');
-      stream.innerHTML += `
-        <div class="copilot-msg">
-          <div class="msg-avatar user">You</div>
-          <div class="msg-body">
-            <div class="msg-sender">You</div>
-            <p>${escapeHtml(text)}</p>
-          </div>
-        </div>
-      `;
-      stream.scrollTop = stream.scrollHeight;
-    }
+    function appendMessage(sender, text, events = []) {
+      const scroll = document.getElementById('chatScroll');
+      const isJob = sender === 'jobpilot';
+      const isUser = sender === 'user';
 
-    function appendCopilotMsg(markdownText, steps = [], isJobPilot = false) {
-      const stream = document.getElementById('chatStream');
-      const avatarClass = isJobPilot ? 'msg-avatar jobpilot' : 'msg-avatar copilot';
-      const avatarLabel = isJobPilot ? 'JP' : 'W';
-      const senderTitle = isJobPilot ? 'JobPilot.ai Plugin' : 'WebOS Copilot';
-      const tagHtml = isJobPilot ? '<span class="plugin-tag">@jobpilot</span>' : '<span class="plugin-tag">@browser</span>';
+      const avatarClass = isUser ? 'avatar user' : (isJob ? 'avatar jobpilot' : 'avatar copilot');
+      const avatarText = isUser ? 'You' : (isJob ? 'JP' : 'W');
+      const authorText = isUser ? 'You' : (isJob ? 'JobPilot.ai Plugin' : 'WebOS Copilot');
+      const tagHtml = isJob ? '<span class="badge-plugin">@jobpilot</span>' : (!isUser ? '<span class="badge-plugin" style="border-color:rgba(59,130,246,0.3);color:#60a5fa;background:rgba(59,130,246,0.15)">@browser</span>' : '');
 
-      let timelineHtml = '';
-      if (steps.length > 0) {
-        timelineHtml = `
-          <div class="step-timeline">
-            <div class="timeline-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'flex' : 'none'">
-              <span>EXECUTION TRACE (${steps.length} EVENTS)</span>
+      let traceHtml = '';
+      if (events && events.length > 0) {
+        traceHtml = `
+          <div class="trace-card">
+            <div class="trace-title" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'flex' : 'none'">
+              <span>EXECUTION TRACE (${events.length} STEPS)</span>
               <span>▼</span>
             </div>
-            <div class="timeline-steps">
-              ${steps.map(s => {
-                let badgeClass = 'thought';
-                if (s.type === 'action') badgeClass = 'action';
-                if (s.type === 'observation') badgeClass = 'observation';
-                if (s.type === 'error') badgeClass = 'error';
-                const desc = s.content || s.details || s.message || '';
+            <div class="trace-body">
+              ${events.map(ev => {
+                let tag = ev.type || 'info';
+                let desc = ev.content || ev.details || ev.message || '';
                 return `
-                  <div class="timeline-row">
-                    <span class="row-type ${badgeClass}">${s.type}</span>
-                    <span style="color: #d1d5db;">${escapeHtml(desc)}</span>
+                  <div class="trace-row">
+                    <span class="trace-tag ${tag}">${tag}</span>
+                    <span style="color:#d1d5db;">${escapeHtml(desc)}</span>
                   </div>
                 `;
               }).join('')}
@@ -1149,27 +929,24 @@ HTML_UI = """<!DOCTYPE html>
         `;
       }
 
-      const htmlContent = marked.parse(markdownText);
+      const parsedHtml = marked.parse(text);
 
-      stream.innerHTML += `
-        <div class="copilot-msg">
-          <div class="${avatarClass}">${avatarLabel}</div>
-          <div class="msg-body">
-            <div class="msg-sender">
-              <span>${senderTitle}</span>
-              ${tagHtml}
-            </div>
-            ${htmlContent}
-            ${timelineHtml}
+      const row = document.createElement('div');
+      row.className = 'msg-row';
+      row.innerHTML = `
+        <div class="${avatarClass}">${avatarText}</div>
+        <div class="msg-content">
+          <div class="msg-author">
+            <span>${authorText}</span>
+            ${tagHtml}
           </div>
+          ${parsedHtml}
+          ${traceHtml}
         </div>
       `;
-      stream.scrollTop = stream.scrollHeight;
-    }
 
-    function clearChat() {
-      document.getElementById('chatStream').innerHTML = '';
-      appendCopilotMsg("Session cleared. Ready for next command.");
+      scroll.appendChild(row);
+      scroll.scrollTop = scroll.scrollHeight;
     }
 
     function escapeHtml(str) {
@@ -1178,9 +955,8 @@ HTML_UI = """<!DOCTYPE html>
       }[m]));
     }
 
-    // Initialize polling
-    setInterval(updateStatus, 3000);
-    updateStatus();
+    setInterval(pollStatus, 3000);
+    pollStatus();
   </script>
 </body>
 </html>
@@ -1194,6 +970,9 @@ class WebOSRequestHandler(BaseHTTPRequestHandler):
         if self.path in ("/", "/index.html"):
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
             self.end_headers()
             self.wfile.write(HTML_UI.encode("utf-8"))
             return
@@ -1201,6 +980,7 @@ class WebOSRequestHandler(BaseHTTPRequestHandler):
         elif self.path == "/favicon.ico":
             self.send_response(200)
             self.send_header("Content-Type", "image/svg+xml")
+            self.send_header("Cache-Control", "public, max-age=86400")
             self.end_headers()
             self.wfile.write(FAVICON_SVG.encode("utf-8"))
             return
@@ -1279,6 +1059,7 @@ class WebOSRequestHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         self.wfile.write(json.dumps(data).encode("utf-8"))
 
@@ -1287,7 +1068,7 @@ class WebOSRequestHandler(BaseHTTPRequestHandler):
         if not runtime.cdp.is_connected:
             return {"connected": False}
         url = await runtime.get_current_url()
-        screenshot = await runtime.get_screenshot(quality=55)
+        screenshot = await runtime.get_screenshot(quality=50)
         return {
             "connected": True,
             "url": url,
@@ -1347,7 +1128,7 @@ class WebOSRequestHandler(BaseHTTPRequestHandler):
             if event.get("type") == "answer":
                 final_answer = event.get("content", "")
             elif event.get("type") == "error":
-                final_answer = f"⚠️ {event.get('message', 'An error occurred.')}"
+                final_answer = f"Error: {event.get('message', 'An error occurred.')}"
 
         if not final_answer and events:
             final_answer = events[-1].get("message") or "Action completed."
@@ -1355,8 +1136,8 @@ class WebOSRequestHandler(BaseHTTPRequestHandler):
         return {"answer": final_answer, "events": events}
 
 
-def run_server(host: str = "127.0.0.1", port: int = 8080, open_browser: bool = True) -> None:
-    """Starts the WebOS interactive chat server and event loop."""
+def run_server(host: str = "127.0.0.1", port: int = 8080, open_browser: bool = False) -> None:
+    """Starts the WebOS interactive chat server and event loop safely without unicode errors."""
     global _GLOBAL_LOOP
     _GLOBAL_LOOP = asyncio.new_event_loop()
 
@@ -1369,14 +1150,15 @@ def run_server(host: str = "127.0.0.1", port: int = 8080, open_browser: bool = T
     t.start()
 
     server = ThreadingHTTPServer((host, port), WebOSRequestHandler)
-    print(f"\n=======================================================")
-    print(f"       🌐 WebOS.ai Copilot Chat Server Running         ")
-    print(f"=======================================================")
+    print("=======================================================")
+    print("       WebOS.ai Copilot Chat Server Running            ")
+    print("=======================================================")
     print(f" URL: http://{host}:{port}")
     print(f" Chrome CDP Target: http://127.0.0.1:9222")
-    print(f" Supported mentions: @jobpilot, @browser, @dossier")
-    print(f" Press Ctrl+C to terminate.")
-    print(f"=======================================================\n")
+    print(" Supported mentions: @jobpilot, @browser")
+    print(" Press Ctrl+C to terminate.")
+    print("=======================================================")
+    sys.stdout.flush()
 
     if open_browser:
         webbrowser.open(f"http://{host}:{port}")
@@ -1384,7 +1166,7 @@ def run_server(host: str = "127.0.0.1", port: int = 8080, open_browser: bool = T
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nShutting down WebOS server...")
+        print("Shutting down WebOS server...")
         server.shutdown()
 
 
