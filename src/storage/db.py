@@ -37,11 +37,14 @@ class DatabaseManager:
             if str(self.db_path) != ":memory:":
                 self._connection.execute("PRAGMA journal_mode=WAL;")
             self._connection.execute("PRAGMA foreign_keys=ON;")
+            self._create_schema(self._connection)
         return self._connection
 
     def initialize_tables(self) -> None:
         """Creates the required tables if they do not exist."""
         conn = self.get_connection()
+
+    def _create_schema(self, conn: sqlite3.Connection) -> None:
         with conn:
             conn.executescript(
                 """
