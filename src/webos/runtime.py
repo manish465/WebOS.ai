@@ -2,6 +2,7 @@
 Master WebRuntime orchestrating Browser, Storage, and Model Gateway subsystems.
 """
 
+import asyncio
 import logging
 from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
@@ -84,12 +85,35 @@ class WebRuntime:
         self._active_session_id = self.flight_recorder.start_session(domain=domain)
         return target_id
 
-    async def navigate(self, url: str) -> None:
-        """Navigates active tab to the specified URL."""
+    async def open_tab(self, url: str) -> str:
+        """Opens a brand new tab in Chrome with the given URL, switches to it, and brings Chrome to the front."""
+        target_data = await self.cdp.create_new_tab(url)
+        try:
+            await self.hud.inject_hud(self.cdp)
+        except Exception as e:
+            logger.debug("Could not inject HUD in new tab: %s", e)
+        await asyncio.sleep(1.0)
+        return str(target_data.get("id", ""))
+
+    async def navigate(self, url: str, open_new_if_needed: bool = False) -> None:
+        """Navigates to the specified URL and brings the Chrome window to the front."""
+        if open_new_if_needed:
+            targets = await self.cdp.get_all_page_targets()
+            domain = url.split("//")[-1].split("/")[0].lower()
+            matching = [t for t in targets if domain in t.get("url", "").lower()]
+            if matching:
+                await self.cdp.activate_tab(matching[0]["id"])
+                await self.cdp.bring_to_front()
+                return
+            else:
+                await self.open_tab(url)
+                return
+
         await self.hud.set_status(self.cdp, f"Navigating to {url}...")
         await self.cdp.send("Page.navigate", {"url": url})
+        await self.cdp.bring_to_front()
         # Wait for page load event
-        await self.cdp.evaluate("new Promise(r => setTimeout(r, 500))")
+        await asyncio.sleep(0.8)
         await self.hud.set_status(self.cdp, "Ready")
 
     async def get_current_url(self) -> str:
@@ -124,6 +148,20 @@ class WebRuntime:
         )
         await self.hud.set_status(self.cdp, f"Found {len(candidates)} candidates")
         return candidates
+
+    async def perceive(self, max_candidates: int = 30) -> List[ElementCandidate]:
+        """Plugin compatibility alias for observe()."""
+        return await self.observe(max_candidates=max_candidates)
+
+    async def execute(
+        self,
+        action: BrowserAction,
+        intent: Optional[str] = None,
+        candidate: Optional[ElementCandidate] = None,
+    ) -> VerificationResult:
+        """Plugin compatibility alias for execute_step()."""
+        act_intent = intent or f"{action.action_type} #{action.target_candidate_id or ''}"
+        return await self.execute_step(act_intent, action, candidate=candidate)
 
     async def ground_intent(
         self, intent: str, candidates: List[ElementCandidate]

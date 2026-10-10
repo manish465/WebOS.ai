@@ -502,85 +502,6 @@ HTML_UI = """<!DOCTYPE html>
     }
     .menu-desc { font-size: 11px; color: var(--text-muted); }
 
-    /* Collapsible Browser Drawer */
-    .browser-drawer {
-      width: 440px;
-      background: var(--surface);
-      border-left: 1px solid var(--border);
-      display: none;
-      flex-direction: column;
-      height: 100%;
-      overflow: hidden;
-      animation: slideIn 0.2s ease-out;
-    }
-    @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
-
-    .drawer-header {
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #0f0f12;
-    }
-    .drawer-title { font-size: 12px; font-weight: 600; color: #fff; font-family: var(--font-mono); }
-    .drawer-close { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 16px; }
-    .drawer-close:hover { color: #fff; }
-
-    .drawer-body {
-      padding: 14px;
-      flex: 1;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .viewport-box {
-      width: 100%;
-      height: 260px;
-      background: #000;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-    }
-    .viewport-box img { width: 100%; height: 100%; object-fit: contain; }
-    .viewport-pill {
-      position: absolute;
-      top: 6px;
-      right: 6px;
-      background: rgba(0,0,0,0.7);
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 10px;
-      font-family: var(--font-mono);
-      color: #34d399;
-    }
-
-    .inspector-box {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      max-height: calc(100vh - 420px);
-      overflow-y: auto;
-    }
-    .cand-row {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 5px;
-      padding: 6px 10px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 12px;
-      cursor: pointer;
-    }
-    .cand-row:hover { border-color: var(--accent); }
-    .cand-name { color: #f4f4f5; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
-    .cand-role { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
   </style>
 </head>
 <body>
@@ -597,12 +518,9 @@ HTML_UI = """<!DOCTYPE html>
         <span id="statusDot" class="dot"></span>
         <span id="statusText">Checking Chrome...</span>
       </div>
-      <button class="btn" onclick="launchChrome()">Launch Chrome</button>
+      <button class="btn" onclick="launchChrome()">Open Chrome</button>
       <button class="btn btn-accent" onclick="connectChrome()">Connect</button>
-      <button id="drawerToggle" class="btn" onclick="toggleDrawer()">
-        <span>Browser View</span>
-        <span id="drawerArrow">▸</span>
-      </button>
+      <button class="btn" onclick="openNewTab()">+ New Tab</button>
     </div>
   </header>
 
@@ -668,42 +586,10 @@ HTML_UI = """<!DOCTYPE html>
         </div>
       </div>
     </div>
-
-    <!-- Collapsible Browser Drawer -->
-    <div id="browserDrawer" class="browser-drawer">
-      <div class="drawer-header">
-        <div class="drawer-title">LIVE CHROME VIEWPORT</div>
-        <button class="drawer-close" onclick="toggleDrawer()">✕</button>
-      </div>
-      <div class="drawer-body">
-        <div class="viewport-box">
-          <img id="drawerImg" alt="Waiting for Chrome connection..." />
-          <div class="viewport-pill">● PORT 9222</div>
-        </div>
-        <div style="font-size: 11px; font-family: var(--font-mono); color: var(--text-dim);">
-          URL: <span id="drawerUrl" style="color: #60a5fa;">about:blank</span>
-        </div>
-        <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">
-          0-Token Candidates (<span id="candCount">0</span>)
-        </div>
-        <div id="inspectorList" class="inspector-box">
-          <div style="font-size: 12px; color: var(--text-dim); padding: 8px;">No elements detected. Connect to Chrome tab.</div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <script>
     let activeMention = null;
-    let isDrawerOpen = false;
-
-    // Toggle Drawer
-    function toggleDrawer() {
-      isDrawerOpen = !isDrawerOpen;
-      document.getElementById('browserDrawer').style.display = isDrawerOpen ? 'flex' : 'none';
-      document.getElementById('drawerArrow').innerText = isDrawerOpen ? '◂' : '▸';
-      if (isDrawerOpen) refreshInspector();
-    }
 
     // Status polling
     async function pollStatus() {
@@ -716,14 +602,13 @@ HTML_UI = """<!DOCTYPE html>
 
         if (data.connected) {
           dot.className = 'dot connected';
-          text.innerText = 'Connected (9222)';
-          document.getElementById('drawerUrl').innerText = data.url || 'about:blank';
-          if (data.screenshot) {
-            document.getElementById('drawerImg').src = 'data:image/jpeg;base64,' + data.screenshot;
-          }
+          const title = data.title ? (data.title.length > 25 ? data.title.substring(0, 25) + '...' : data.title) : 'Connected (9222)';
+          text.innerText = title;
+          text.title = (data.title || '') + ' - ' + (data.url || '');
         } else {
           dot.className = 'dot';
-          text.innerText = 'Disconnected';
+          text.innerText = 'Chrome Disconnected';
+          text.title = 'Start Chrome with remote debugging on port 9222';
         }
       } catch (err) {
         document.getElementById('statusDot').className = 'dot';
@@ -731,38 +616,7 @@ HTML_UI = """<!DOCTYPE html>
       }
     }
 
-    async function refreshInspector() {
-      try {
-        const res = await fetch('/api/candidates');
-        const data = await res.json();
-        const list = document.getElementById('inspectorList');
-        const count = document.getElementById('candCount');
-        const cands = data.candidates || [];
-        count.innerText = cands.length;
-
-        if (cands.length === 0) {
-          list.innerHTML = '<div style="font-size:12px;color:var(--text-dim);padding:8px;">No candidates detected.</div>';
-          return;
-        }
-
-        list.innerHTML = cands.map(c => `
-          <div class="cand-row" onclick="insertCandidate('${c.name || c.role}')">
-            <div class="cand-name">${escapeHtml(c.name || 'unnamed')}</div>
-            <div class="cand-role">#${c.id} ${c.role.toUpperCase()}</div>
-          </div>
-        `).join('');
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    function insertCandidate(name) {
-      const input = document.getElementById('promptInput');
-      input.value = `Click on "${name}"`;
-      input.focus();
-    }
-
-    // Connection Controls
+    // Connection & Tab Controls
     async function launchChrome() {
       appendMessage('copilot', 'Launching Chrome with remote debugging on port 9222...');
       await fetch('/api/launch_chrome', { method: 'POST' });
@@ -782,6 +636,28 @@ HTML_UI = """<!DOCTYPE html>
         }
       } catch (err) {
         appendMessage('copilot', 'Server connection error: ' + err);
+      }
+    }
+
+    async function openNewTab() {
+      const url = prompt("Enter URL for new tab:", "https://www.linkedin.com");
+      if (!url) return;
+      appendMessage('copilot', `Opening new tab: ${url}...`);
+      try {
+        const res = await fetch('/api/new_tab', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+        const data = await res.json();
+        if (data.success) {
+          appendMessage('copilot', `Opened and focused tab in Chrome.`);
+          pollStatus();
+        } else {
+          appendMessage('copilot', `Could not open tab: ${data.error}`);
+        }
+      } catch (err) {
+        appendMessage('copilot', `Error opening tab: ${err}`);
       }
     }
 
@@ -1043,6 +919,16 @@ class WebOSRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"success": False, "error": str(err)})
             return
 
+        elif self.path == "/api/new_tab":
+            url = req_data.get("url", "https://www.google.com")
+            future = asyncio.run_coroutine_threadsafe(runtime.open_tab(url), _GLOBAL_LOOP)
+            try:
+                target_id = future.result(timeout=6.0)
+                self._send_json({"success": True, "target_id": target_id})
+            except Exception as err:
+                self._send_json({"success": False, "error": str(err)})
+            return
+
         elif self.path == "/api/chat":
             msg = req_data.get("message", "")
             future = asyncio.run_coroutine_threadsafe(self._run_chat_task(agent, msg), _GLOBAL_LOOP)
@@ -1064,15 +950,20 @@ class WebOSRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(data).encode("utf-8"))
 
     async def _get_status_data(self, runtime: WebRuntime) -> Dict[str, Any]:
-        """Lightweight status check without congested full AXTree scans."""
+        """Lightweight status check returning connection status and active tab title."""
         if not runtime.cdp.is_connected:
             return {"connected": False}
         url = await runtime.get_current_url()
-        screenshot = await runtime.get_screenshot(quality=50)
+        title = ""
+        try:
+            val = await runtime.cdp.evaluate("document.title")
+            title = str(val or "")
+        except Exception:
+            pass
         return {
             "connected": True,
             "url": url,
-            "screenshot": screenshot,
+            "title": title,
         }
 
     async def _get_candidates(self, runtime: WebRuntime) -> Dict[str, Any]:
@@ -1109,14 +1000,23 @@ class WebOSRequestHandler(BaseHTTPRequestHandler):
         if not target_path:
             return {"success": False, "error": "Chrome executable not found on host."}
 
-        debug_dir = os.path.join(os.environ.get("TEMP", "C:/Temp"), "webos_chrome_profile")
+        # Use persistent WebOS profile so logins (LinkedIn, Google, GitHub) are preserved forever
+        debug_dir = os.path.join(os.path.expanduser("~"), ".webos", "chrome_profile")
+        os.makedirs(debug_dir, exist_ok=True)
         cmd = [
             target_path,
             "--remote-debugging-port=9222",
             f"--user-data-dir={debug_dir}",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "https://www.google.com",
         ]
-        subprocess.Popen(cmd)
-        return {"success": True, "message": "Chrome launched."}
+        flags = 0
+        if sys.platform == "win32":
+            flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        subprocess.Popen(cmd, creationflags=flags)
+        await asyncio.sleep(1.5)
+        return {"success": True, "message": "Chrome launched on port 9222 with persistent profile."}
 
     async def _run_chat_task(
         self, agent: AutonomousBrowserAgent, message: str

@@ -104,15 +104,30 @@ class HUDOverlay:
     })()
     """
 
+    def __init__(self) -> None:
+        self._active_cdp: Optional[CDPClient] = None
+
     async def inject_hud(self, cdp: CDPClient) -> None:
         """Injects the floating HUD into the active document."""
+        self._active_cdp = cdp
         await cdp.evaluate(self.HUD_INJECTION_SCRIPT)
 
     async def set_status(
-        self, cdp: CDPClient, message: str, mode: str = "running"
+        self, cdp_or_msg: Any, message: Optional[str] = None, mode: str = "running"
     ) -> None:
         """Updates the status message displayed inside the HUD."""
-        safe_msg = json.dumps(message)
+        if isinstance(cdp_or_msg, str):
+            actual_msg = cdp_or_msg
+            cdp = self._active_cdp
+        else:
+            cdp = cdp_or_msg
+            actual_msg = message or ""
+            self._active_cdp = cdp
+
+        if not cdp or not getattr(cdp, "is_connected", False):
+            return
+
+        safe_msg = json.dumps(actual_msg)
         script = f"""
         (() => {{
             const host = document.getElementById('webos-hud-host');
@@ -121,7 +136,10 @@ class HUDOverlay:
             if (statusEl) statusEl.textContent = {safe_msg};
         }})()
         """
-        await cdp.evaluate(script)
+        try:
+            await cdp.evaluate(script)
+        except Exception:
+            pass
 
     async def is_paused(self, cdp: CDPClient) -> bool:
         """Checks if the user has hit the Pause button."""

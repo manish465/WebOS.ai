@@ -81,37 +81,68 @@ class AutonomousBrowserAgent:
 
             # 1. Check for explicit Navigation intent
             nav_target = self._extract_navigation_url(current_task)
-            if nav_target and (not current_url or nav_target.lower() not in current_url.lower()):
-                yield {
-                    "type": "action",
-                    "step": steps_taken,
-                    "action": "navigate",
-                    "target": nav_target,
-                    "details": f"Navigating to {nav_target}",
-                }
-                try:
-                    await self.runtime.navigate(nav_target)
-                    await asyncio.sleep(1.0)
-                    new_url = await self.runtime.get_current_url()
-                    screenshot = await self.runtime.get_screenshot()
-                    yield {
-                        "type": "observation",
-                        "step": steps_taken,
-                        "url": new_url,
-                        "screenshot": screenshot,
-                        "message": f"Successfully loaded {new_url}",
-                    }
-                except Exception as err:
-                    yield {"type": "error", "message": f"Navigation failed: {err}"}
-                    return
+            if nav_target:
+                already_there = current_url and (
+                    nav_target.lower() in current_url.lower() or current_url.lower() in nav_target.lower()
+                )
 
-                # If the goal was simply to navigate, finish
-                if any(lower_inst.startswith(p) for p in ["go to", "open", "visit", "navigate to"]) and not any(
-                    action_word in lower_inst for action_word in ["and search", "and click", "and find", "and fill"]
-                ):
+                if already_there:
+                    yield {
+                        "type": "thought",
+                        "content": f"Already on {nav_target}. Bringing Chrome tab and window to front...",
+                    }
+                    await self.runtime.cdp.bring_to_front()
+                    new_url = current_url
+                else:
+                    yield {
+                        "type": "action",
+                        "step": steps_taken,
+                        "action": "navigate",
+                        "target": nav_target,
+                        "details": f"Opening {nav_target} in Chrome tab",
+                    }
+                    try:
+                        await self.runtime.navigate(nav_target, open_new_if_needed=True)
+                        new_url = await self.runtime.get_current_url()
+                        screenshot = await self.runtime.get_screenshot()
+                        yield {
+                            "type": "observation",
+                            "step": steps_taken,
+                            "url": new_url,
+                            "screenshot": screenshot,
+                            "message": f"Successfully loaded {new_url}",
+                        }
+                    except Exception as err:
+                        yield {"type": "error", "message": f"Navigation failed: {err}"}
+                        return
+
+                # If the goal was simply to navigate, finish with a clear, helpful answer
+                is_pure_nav = any(
+                    lower_inst.startswith(p) for p in ["go to", "open", "visit", "navigate to", "launch"]
+                ) or lower_inst in ["linkedin", "github", "google", "youtube", "twitter", "reddit"]
+                has_subsequent_action = any(
+                    action_word in lower_inst
+                    for action_word in ["and search", "and click", "and find", "and fill", "and apply"]
+                )
+                if is_pure_nav and not has_subsequent_action:
+                    page_title = str(await self.runtime.cdp.evaluate("document.title") or "")
+                    is_login_page = any(kw in page_title.lower() for kw in ["log in", "sign in", "login", "signin"])
+
+                    session_note = ""
+                    if "linkedin" in nav_target.lower():
+                        if is_login_page:
+                            session_note = (
+                                "\n\n> [!NOTE]\n"
+                                "> **LinkedIn Session**: Chrome is currently displaying the Sign In page. "
+                                "Sign into your account in the active Chrome window; WebOS stores your session "
+                                "persistently in `~/.webos/chrome_profile` so you stay logged in for all automations."
+                            )
+                        else:
+                            session_note = "\n\n> **Session Active**: Logged into LinkedIn with active session."
+
                     yield {
                         "type": "answer",
-                        "content": f"Successfully navigated to **{new_url}**.",
+                        "content": f"Successfully opened **{new_url}** in Chrome.{session_note}",
                     }
                     return
 
@@ -280,18 +311,31 @@ class AutonomousBrowserAgent:
                 return f"https://{raw_target}"
             return raw_target
 
-        # 3. Common shortcuts
+        # 3. Common shortcuts and brand matching
         shortcuts = {
             "google": "https://www.google.com",
             "youtube": "https://www.youtube.com",
             "github": "https://github.com",
             "hacker news": "https://news.ycombinator.com",
+            "hackernews": "https://news.ycombinator.com",
+            "hn": "https://news.ycombinator.com",
             "wikipedia": "https://www.wikipedia.org",
             "amazon": "https://www.amazon.com",
             "linkedin": "https://www.linkedin.com",
+            "twitter": "https://twitter.com",
+            "x": "https://x.com",
+            "reddit": "https://www.reddit.com",
         }
+        clean_text = text.lower().strip()
         for name, url in shortcuts.items():
-            if f"go to {name}" in text.lower() or f"open {name}" in text.lower():
+            if (
+                clean_text == name
+                or f"go to {name}" in clean_text
+                or f"open {name}" in clean_text
+                or f"visit {name}" in clean_text
+                or f"navigate to {name}" in clean_text
+                or f"launch {name}" in clean_text
+            ):
                 return url
 
         return None
