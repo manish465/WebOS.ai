@@ -99,6 +99,20 @@ class WebRuntime:
         val = await self.cdp.evaluate("window.location.href")
         return str(val or "")
 
+    async def get_screenshot(self, format: str = "jpeg", quality: int = 70) -> str:
+        """Captures a base64-encoded screenshot of the active browser viewport."""
+        if not self.cdp.is_connected:
+            return ""
+        try:
+            res = await self.cdp.send(
+                "Page.captureScreenshot",
+                {"format": format, "quality": quality},
+            )
+            return res.get("data", "")
+        except Exception as e:
+            logger.warning("Failed to capture screenshot: %s", e)
+            return ""
+
     async def observe(self, max_candidates: int = 30) -> List[ElementCandidate]:
         """
         Extracts visible, interactive candidates from the active page
