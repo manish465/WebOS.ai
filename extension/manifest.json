@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "WebOS Copilot — Real Session Bridge",
+  "version": "1.0.0",
+  "description": "Bridges your live, logged-in Chrome session (LinkedIn, Amazon, Google) directly to WebOS Copilot with 0 isolated profiles.",
+  "permissions": [
+    "debugger",
+    "tabs",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "WebOS Copilot Bridge",
+    "default_popup": "popup.html"
+  }
+}

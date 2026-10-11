@@ -42,30 +42,46 @@ class AutonomousBrowserAgent:
 
         # Check if Chrome is connected
         if not self.runtime.cdp.is_connected:
-            yield {"type": "thought", "content": "Attempting connection to Chrome on port 9222..."}
+            from webos.browser.extension_bridge import get_global_bridge
+            bridge = get_global_bridge()
+            if bridge.is_connected:
+                yield {"type": "thought", "content": "Attaching to your active Chrome window via WebOS Extension Bridge..."}
+                try:
+                    await self.runtime.connect()
+                    yield {"type": "status", "content": "Attached directly to active Chrome session (real user logins preserved)."}
+                except Exception as ex:
+                    logger.warning("Extension connect failed: %s", ex)
+
+        if not self.runtime.cdp.is_connected:
+            yield {"type": "thought", "content": "Checking Chrome on port 9222..."}
             try:
                 await self.runtime.connect(port=9222)
-                yield {"type": "status", "content": "Connected to Chrome CDP session."}
+                yield {"type": "status", "content": "Connected to Chrome CDP session on port 9222."}
             except Exception:
                 yield {
                     "type": "thought",
-                    "content": "Port 9222 not yet active. Attaching your real Chrome session (preserving LinkedIn/Amazon logins with --restore-last-session)...",
+                    "content": "Port 9222 not yet active. Launching Chrome session with persistent profile...",
                 }
                 from webos.server import launch_chrome_browser
                 launch_res = await launch_chrome_browser(use_main_session=True)
                 if not launch_res.get("success"):
                     yield {"type": "error", "message": launch_res.get("error", "Failed to launch Chrome session.")}
                     return
-                await asyncio.sleep(2.5)
+                await asyncio.sleep(2.0)
                 try:
                     await self.runtime.connect(port=9222)
-                    yield {"type": "status", "content": "Attached to real Chrome session on port 9222."}
+                    yield {"type": "status", "content": "Attached to Chrome session on port 9222."}
                 except Exception as ex:
                     yield {
                         "type": "error",
                         "message": (
-                            f"Could not connect to Chrome on port 9222: {ex}. "
-                            "Please ensure Chrome is running with: chrome.exe --remote-debugging-port=9222"
+                            "> [!IMPORTANT]\n"
+                            "> **Connect Your Real Chrome Session (0 Isolated Profiles)**\n\n"
+                            "To control your current Chrome browser with all your active logins (LinkedIn, Amazon, Google):\n"
+                            "1. Open `chrome://extensions` in your Chrome browser.\n"
+                            "2. Enable **Developer mode** (top right switch).\n"
+                            "3. Click **Load unpacked** and choose: `D:\\DEVLOPMENT\\Projects\\WebOS.ai\\extension`\n\n"
+                            "*(Or double-click `attach_real_chrome.bat` in `D:\\DEVLOPMENT\\Projects\\WebOS.ai`)*"
                         ),
                     }
                     return

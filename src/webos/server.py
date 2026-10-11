@@ -617,14 +617,15 @@ HTML_UI = """<!DOCTYPE html>
 
         if (data.connected) {
           dot.className = 'dot connected';
-          const isMain = data.session_type === 'main';
-          const title = data.title ? (data.title.length > 20 ? data.title.substring(0, 20) + '...' : data.title) : 'Connected (9222)';
-          text.innerText = title + (isMain ? ' • Real Session' : ' • WebOS Profile');
-          text.title = (data.title || '') + ' - ' + (data.url || '') + (isMain ? ' (Using your real logged-in Chrome profile)' : ' (Using isolated WebOS profile)');
+          const isExt = !!data.extension_connected;
+          const isMain = data.session_type === 'main' || isExt;
+          const title = data.title ? (data.title.length > 20 ? data.title.substring(0, 20) + '...' : data.title) : 'Connected';
+          text.innerText = isExt ? `Real Chrome Attached • ${title}` : (title + (isMain ? ' • Real Profile' : ' • WebOS Profile'));
+          text.title = isExt ? 'Live Chrome Session Bridge active (0 isolated profiles, active logins preserved)' : ((data.title || '') + ' - ' + (data.url || ''));
         } else {
           dot.className = 'dot';
           text.innerText = 'Chrome Disconnected';
-          text.title = 'Start Chrome with remote debugging on port 9222';
+          text.title = 'Connect via Extension or launch on port 9222';
         }
       } catch (err) {
         document.getElementById('statusDot').className = 'dot';
@@ -634,16 +635,19 @@ HTML_UI = """<!DOCTYPE html>
 
     // Connection & Tab Controls
     async function launchMainChrome() {
-      if (!confirm("This will restart Chrome with remote debugging on port 9222 so WebOS can use your real logged-in sessions (Amazon, LinkedIn, etc.). Your open tabs will be restored. Continue?")) {
-        return;
-      }
-      appendMessage('copilot', 'Relaunching Chrome with your active session and remote debugging enabled...');
-      await fetch('/api/launch_chrome', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ main_session: true })
-      });
-      setTimeout(connectChrome, 2500);
+      appendMessage('copilot', `
+### ⚡ Attach Your Real Chrome Session (0 Logins, 0 Isolated Windows)
+To control your current Chrome browser directly with all your personal accounts (LinkedIn, Amazon, Google):
+
+1. Open **\`chrome://extensions\`** in your browser.
+2. Enable **Developer mode** in the top right.
+3. Click **Load unpacked** and select:
+   \`D:\\DEVLOPMENT\\Projects\\WebOS.ai\\extension\`
+
+*(Or run \`attach_real_chrome.bat\` in the WebOS folder.)*
+Once loaded, WebOS automatically attaches to your active tabs!
+      `);
+      await fetch('/api/launch_extension_chrome', { method: 'POST' });
     }
 
     async function launchChrome() {
@@ -986,6 +990,17 @@ class WebOSRequestHandler(BaseHTTPRequestHandler):
             self._send_json(res)
             return
 
+        elif self.path == "/api/launch_extension_chrome":
+            ext_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "extension"))
+            chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+            flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
+            if os.path.exists(chrome_path):
+                subprocess.Popen([chrome_path, f"--load-extension={ext_dir}", "http://127.0.0.1:8080"], creationflags=flags)
+                self._send_json({"success": True, "message": "Chrome launched with WebOS Real Session Extension."})
+            else:
+                self._send_json({"success": False, "error": "Chrome executable not found."})
+            return
+
         elif self.path == "/api/connect":
             future = asyncio.run_coroutine_threadsafe(runtime.connect(port=9222), _GLOBAL_LOOP)
             try:
@@ -1036,8 +1051,12 @@ class WebOSRequestHandler(BaseHTTPRequestHandler):
 
     async def _get_status_data(self, runtime: WebRuntime) -> Dict[str, Any]:
         """Lightweight status check returning connection status and active tab title."""
-        if not runtime.cdp.is_connected:
-            return {"connected": False}
+        from webos.browser.extension_bridge import get_global_bridge
+        bridge = get_global_bridge()
+        ext_connected = bridge.is_connected
+
+        if not runtime.cdp.is_connected and not ext_connected:
+            return {"connected": False, "extension_connected": False}
         url = await runtime.get_current_url()
         title = ""
         try:
@@ -1049,7 +1068,8 @@ class WebOSRequestHandler(BaseHTTPRequestHandler):
             "connected": True,
             "url": url,
             "title": title,
-            "session_type": _CURRENT_SESSION_TYPE,
+            "session_type": "extension_real" if ext_connected else _CURRENT_SESSION_TYPE,
+            "extension_connected": ext_connected,
         }
 
     async def _get_candidates(self, runtime: WebRuntime) -> Dict[str, Any]:
@@ -1100,6 +1120,11 @@ def run_server(host: str = "127.0.0.1", port: int = 8080, open_browser: bool = F
     # Background thread running asyncio loop
     def start_loop(loop: asyncio.AbstractEventLoop) -> None:
         asyncio.set_event_loop(loop)
+        try:
+            from webos.browser.extension_bridge import get_global_bridge
+            loop.create_task(get_global_bridge().start())
+        except Exception as err:
+            logger.warning("Could not start Extension Bridge: %s", err)
         loop.run_forever()
 
     t = threading.Thread(target=start_loop, args=(_GLOBAL_LOOP,), daemon=True)

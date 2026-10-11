@@ -25,18 +25,35 @@ class CDPClient:
         self._listener_task: Optional[asyncio.Task] = None
         self._connected: bool = False
         self.target_id: Optional[str] = None
+        self._use_extension: bool = False
+        self._extension_bridge = None
 
     @property
     def is_connected(self) -> bool:
+        if self._use_extension and self._extension_bridge:
+            return self._extension_bridge.is_connected
         return self._connected and self.ws is not None
 
     async def connect(
         self, host: str = "127.0.0.1", port: int = 9222, target_index: int = 0
     ) -> str:
         """
-        Discovers targets via HTTP /json and opens a WebSocket to the active tab.
+        Discovers targets via WebOS Extension Bridge or HTTP /json and opens a WebSocket to the active tab.
         Returns the connected target ID.
         """
+        try:
+            from webos.browser.extension_bridge import get_global_bridge
+            bridge = get_global_bridge()
+            if bridge.is_connected:
+                self._use_extension = True
+                self._extension_bridge = bridge
+                self._connected = True
+                self.target_id = bridge.target_id or "extension_tab"
+                logger.info("Connected to real Chrome session via WebOS Extension Bridge")
+                return self.target_id
+        except Exception:
+            pass
+
         json_url = f"http://{host}:{port}/json"
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(json_url)
@@ -75,7 +92,10 @@ class CDPClient:
         return self.target_id
 
     async def get_all_page_targets(self, host: str = "127.0.0.1", port: int = 9222) -> List[Dict[str, Any]]:
-        """Queries /json to get all accessible browser page targets."""
+        """Queries /json or Extension Bridge to get all accessible browser page targets."""
+        if self._use_extension and self._extension_bridge:
+            return await self._extension_bridge.get_all_page_targets(host=host, port=port)
+
         try:
             async with httpx.AsyncClient(timeout=4.0) as client:
                 resp = await client.get(f"http://{host}:{port}/json")
@@ -95,6 +115,11 @@ class CDPClient:
         """
         Creates a brand new tab in Chrome, connects CDP client to it, and brings Chrome to front.
         """
+        if self._use_extension and self._extension_bridge:
+            res = await self._extension_bridge.create_new_tab(url, host=host, port=port)
+            await self.bring_to_front()
+            return res
+
         safe_url = quote(url, safe=":/%#?=&")
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.put(f"http://{host}:{port}/json/new?{safe_url}")
@@ -120,6 +145,10 @@ class CDPClient:
 
     async def activate_tab(self, target_id: str, host: str = "127.0.0.1", port: int = 9222) -> None:
         """Activates a target tab in Chrome and brings Chrome window to the front."""
+        if self._use_extension and self._extension_bridge:
+            await self._extension_bridge.activate_tab(target_id, host=host, port=port)
+            await self.bring_to_front()
+            return
         async with httpx.AsyncClient(timeout=4.0) as client:
             await client.get(f"http://{host}:{port}/json/activate/{target_id}")
 
@@ -153,6 +182,14 @@ class CDPClient:
 
     async def bring_to_front(self) -> None:
         """Brings the active tab to front and focuses the Chrome desktop window."""
+        if self._use_extension and self._extension_bridge:
+            try:
+                await self._extension_bridge.bring_to_front()
+            except Exception:
+                pass
+            self._focus_window_os()
+            return
+
         try:
             await self.send("Page.bringToFront")
         except Exception as e:
@@ -197,6 +234,9 @@ class CDPClient:
         self, method: str, params: Optional[Dict[str, Any]] = None, timeout: float = 18.0
     ) -> Dict[str, Any]:
         """Sends a JSON-RPC command and awaits its matching result."""
+        if self._use_extension and self._extension_bridge:
+            return await self._extension_bridge.send(method, params, timeout=timeout)
+
         if not self.ws or not self._connected:
             raise ConnectionError("CDPClient is not connected to a browser target.")
 
