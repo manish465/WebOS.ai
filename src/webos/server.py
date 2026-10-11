@@ -513,6 +513,100 @@ HTML_UI = """<!DOCTYPE html>
       border-color: #10b981;
       color: #fff;
     }
+
+    /* Dark Mode Custom Scrollbars */
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: #27272a #09090b;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #09090b;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #27272a;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3f3f46;
+    }
+
+    /* Progress Indicators & Spinners */
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.96); }
+    }
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #27272a;
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 9px 16px;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 500;
+      display: none;
+      z-index: 1000;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    /* Modal Dialog for New Tab */
+    .modal-dialog {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      color: var(--text);
+      z-index: 100;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+    }
+    .modal-dialog::backdrop {
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(2px);
+    }
+    .modal-box { display: flex; flex-direction: column; gap: 12px; min-width: 340px; }
+    .modal-title { font-size: 14px; font-weight: 600; }
+    .modal-input {
+      background: #18181b;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: #fff;
+      font-size: 13px;
+      outline: none;
+    }
+    .modal-input:focus { border-color: var(--accent); }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+    /* Responsive Viewport */
+    @media (max-width: 768px) {
+      header { padding: 0 12px; height: auto; flex-wrap: wrap; gap: 8px; padding-top: 8px; padding-bottom: 8px; }
+      .header-status { flex-wrap: wrap; gap: 8px; }
+      .btn { padding: 4px 8px; font-size: 11px; }
+      #statusText { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .chat-dock { padding: 0 12px 12px 12px; }
+    }
   </style>
 </head>
 <body>
@@ -533,8 +627,24 @@ HTML_UI = """<!DOCTYPE html>
       <button class="btn" onclick="launchChrome()">Open Window</button>
       <button class="btn btn-accent" onclick="connectChrome()">Connect</button>
       <button class="btn" onclick="openNewTab()">+ New Tab</button>
+      <button class="btn" onclick="newChat()" title="Start a fresh task and clear messages">New Chat</button>
     </div>
   </header>
+
+  <!-- Modal Dialog for New Tab -->
+  <dialog id="newTabDialog" class="modal-dialog">
+    <div class="modal-box">
+      <div class="modal-title">Open New Tab in Chrome</div>
+      <input type="text" id="newTabUrlInput" class="modal-input" placeholder="https://example.com" value="https://www.linkedin.com" onkeydown="if(event.key==='Enter')confirmNewTab()" />
+      <div class="modal-actions">
+        <button class="btn" onclick="document.getElementById('newTabDialog').close()">Cancel</button>
+        <button class="btn btn-accent" onclick="confirmNewTab()">Open Tab</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast"></div>
 
   <!-- Main Split Layout -->
   <div class="main-layout">
@@ -549,19 +659,19 @@ HTML_UI = """<!DOCTYPE html>
           </div>
           <div class="hero-chips">
             <div class="chip" onclick="quickPrompt('open amazon and search for cheap headphones')">
-              🎧 Search Amazon for Headphones
+              &#127911; Search Amazon for Headphones
             </div>
             <div class="chip jobpilot" onclick="quickPrompt('@jobpilot scan active role and auto-apply')">
-              💼 @jobpilot: Auto-Apply
+              &#128188; @jobpilot: Auto-Apply
             </div>
             <div class="chip" onclick="quickPrompt('Attach my real Chrome session')">
-              🔑 Attach My Real Session
+              &#128273; Attach My Real Session
             </div>
             <div class="chip" onclick="quickPrompt('Go to news.ycombinator.com and summarize top story')">
-              📰 Hacker News Summary
+              &#128240; Hacker News Summary
             </div>
             <div class="chip" onclick="quickPrompt('Go to github.com/trending')">
-              ⭐ Trending Repos
+              &#11088; Trending Repos
             </div>
           </div>
         </div>
@@ -633,8 +743,19 @@ HTML_UI = """<!DOCTYPE html>
       }
     }
 
+    // Toast Notification Helper
+    function showToast(msg, isError = false) {
+      let toast = document.getElementById('toast');
+      if (!toast) return;
+      toast.innerText = msg;
+      toast.style.background = isError ? '#dc2626' : '#059669';
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 3200);
+    }
+
     // Connection & Tab Controls
     async function launchMainChrome() {
+      const extPath = "D:\\\\DEVLOPMENT\\\\Projects\\\\WebOS.ai\\\\extension";
       appendMessage('copilot', `
 ### ⚡ Attach Your Real Chrome Session (0 Logins, 0 Isolated Windows)
 To control your current Chrome browser directly with all your personal accounts (LinkedIn, Amazon, Google):
@@ -642,7 +763,7 @@ To control your current Chrome browser directly with all your personal accounts 
 1. Open **\`chrome://extensions\`** in your browser.
 2. Enable **Developer mode** in the top right.
 3. Click **Load unpacked** and select:
-   \`D:\\DEVLOPMENT\\Projects\\WebOS.ai\\extension\`
+   \`${extPath}\`
 
 *(Or run \`attach_real_chrome.bat\` in the WebOS folder.)*
 Once loaded, WebOS automatically attaches to your active tabs!
@@ -651,7 +772,7 @@ Once loaded, WebOS automatically attaches to your active tabs!
     }
 
     async function launchChrome() {
-      appendMessage('copilot', 'Connecting to Chrome with your real session and remote debugging...');
+      showToast('Launching Chrome with persistent profile on port 9222...');
       await fetch('/api/launch_chrome', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -661,25 +782,36 @@ Once loaded, WebOS automatically attaches to your active tabs!
     }
 
     async function connectChrome() {
-      appendMessage('copilot', 'Connecting to Chrome DevTools Protocol...');
+      showToast('Connecting to Chrome DevTools Protocol...');
       try {
         const res = await fetch('/api/connect', { method: 'POST' });
         const data = await res.json();
         if (data.success) {
-          appendMessage('copilot', 'Successfully connected to Chrome session.');
+          showToast('Successfully connected to Chrome session.');
           pollStatus();
         } else {
-          appendMessage('copilot', 'Connection failed: ' + (data.error || 'Check Chrome is running.'));
+          showToast('Connection failed: ' + (data.error || 'Check Chrome is running.'), true);
         }
       } catch (err) {
-        appendMessage('copilot', 'Server connection error: ' + err);
+        showToast('Server connection error: ' + err, true);
       }
     }
 
-    async function openNewTab() {
-      const url = prompt("Enter URL for new tab:", "https://www.linkedin.com");
-      if (!url) return;
-      appendMessage('copilot', `Opening new tab: ${url}...`);
+    function openNewTab() {
+      const diag = document.getElementById('newTabDialog');
+      if (diag) {
+        diag.showModal();
+        const inp = document.getElementById('newTabUrlInput');
+        if (inp) { inp.focus(); inp.select(); }
+      }
+    }
+
+    async function confirmNewTab() {
+      const diag = document.getElementById('newTabDialog');
+      const inp = document.getElementById('newTabUrlInput');
+      const url = (inp ? inp.value.trim() : '') || 'https://www.google.com';
+      if (diag) diag.close();
+      showToast(`Opening new tab: ${url}...`);
       try {
         const res = await fetch('/api/new_tab', {
           method: 'POST',
@@ -688,14 +820,25 @@ Once loaded, WebOS automatically attaches to your active tabs!
         });
         const data = await res.json();
         if (data.success) {
-          appendMessage('copilot', `Opened and focused tab in Chrome.`);
+          showToast('Opened and focused tab in Chrome.');
           pollStatus();
         } else {
-          appendMessage('copilot', `Could not open tab: ${data.error}`);
+          showToast('Could not open tab: ' + data.error, true);
         }
       } catch (err) {
-        appendMessage('copilot', `Error opening tab: ${err}`);
+        showToast('Error opening tab: ' + err, true);
       }
+    }
+
+    function newChat() {
+      const scroll = document.getElementById('chatScroll');
+      scroll.innerHTML = '';
+      const hero = document.getElementById('heroView');
+      if (hero) {
+        hero.style.display = 'flex';
+        scroll.appendChild(hero);
+      }
+      showToast('Conversation reset.');
     }
 
     // @ Mention Logic
@@ -791,6 +934,21 @@ Once loaded, WebOS automatically attaches to your active tabs!
       const btn = document.getElementById('sendBtn');
       btn.disabled = true;
 
+      // Show live loading progress indicator
+      const scroll = document.getElementById('chatScroll');
+      const progressRow = document.createElement('div');
+      progressRow.id = 'copilotLoading';
+      progressRow.className = 'msg-row';
+      progressRow.innerHTML = `
+        <div class="avatar copilot" style="animation: pulse 1.5s infinite;">W</div>
+        <div class="msg-content" style="display:flex;align-items:center;gap:10px;color:var(--text-muted);font-size:13px;">
+          <div class="spinner"></div>
+          <span>WebOS Copilot is perceiving and executing browser actions...</span>
+        </div>
+      `;
+      scroll.appendChild(progressRow);
+      scroll.scrollTop = scroll.scrollHeight;
+
       try {
         const res = await fetch('/api/chat', {
           method: 'POST',
@@ -799,11 +957,17 @@ Once loaded, WebOS automatically attaches to your active tabs!
         });
         const data = await res.json();
         const isJobPilot = text.includes('@jobpilot');
-        appendMessage(isJobPilot ? 'jobpilot' : 'copilot', data.answer || "Completed.", data.events || []);
+        if (!res.ok || data.error) {
+          appendMessage('copilot', `> [!WARNING]\n> **Execution Error**: ${data.error || 'The browser automation task encountered an error.'}`, data.events || []);
+        } else {
+          appendMessage(isJobPilot ? 'jobpilot' : 'copilot', data.answer || "Action completed.", data.events || []);
+        }
         pollStatus();
       } catch (err) {
         appendMessage('copilot', '⚠️ Automation error: ' + err);
       } finally {
+        const p = document.getElementById('copilotLoading');
+        if (p) p.remove();
         btn.disabled = false;
       }
     }
@@ -830,10 +994,20 @@ Once loaded, WebOS automatically attaches to your active tabs!
               ${events.map(ev => {
                 let tag = ev.type || 'info';
                 let desc = ev.content || ev.details || ev.message || '';
+                if (!desc) {
+                  if (ev.action) desc = `Action: ${ev.action} ${ev.target || ''}`;
+                  else if (ev.candidates_count !== undefined) desc = `Perceived ${ev.candidates_count} interactive candidates on ${ev.url || 'page'}`;
+                  else if (ev.url) desc = `Loaded ${ev.url}`;
+                  else if (ev.pdf) desc = `Compiled PDF: ${ev.pdf}`;
+                }
+                let thumb = ev.screenshot ? `<img src="data:image/jpeg;base64,${ev.screenshot}" style="max-height:80px;border-radius:4px;border:1px solid #27272a;margin-top:4px;display:block;" />` : '';
                 return `
-                  <div class="trace-row">
-                    <span class="trace-tag ${tag}">${tag}</span>
-                    <span style="color:#d1d5db;">${escapeHtml(desc)}</span>
+                  <div class="trace-row" style="flex-direction:column;align-items:flex-start;">
+                    <div style="display:flex;gap:8px;align-items:center;">
+                      <span class="trace-tag ${tag}">${tag}</span>
+                      <span style="color:#d1d5db;">${escapeHtml(desc)}</span>
+                    </div>
+                    ${thumb}
                   </div>
                 `;
               }).join('')}
@@ -1030,20 +1204,32 @@ class WebOSRequestHandler(BaseHTTPRequestHandler):
             return
 
         elif self.path == "/api/chat":
-            msg = req_data.get("message", "")
+            raw_msg = req_data.get("message")
+            if not isinstance(raw_msg, str) or not raw_msg.strip():
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Field 'message' must be a non-empty string."}).encode("utf-8"))
+                return
+            msg = raw_msg.strip()
             future = asyncio.run_coroutine_threadsafe(self._run_chat_task(agent, msg), _GLOBAL_LOOP)
             try:
                 result = future.result(timeout=60.0)
                 self._send_json(result)
             except Exception as err:
-                self._send_json({"error": str(err)})
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(err), "events": []}).encode("utf-8"))
             return
 
         self.send_error(404, "Not Found")
 
     def _send_json(self, data: Dict[str, Any]) -> None:
         self.send_response(200)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()

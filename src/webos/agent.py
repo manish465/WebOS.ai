@@ -185,6 +185,13 @@ class AutonomousBrowserAgent:
                     try:
                         await self.runtime.navigate(nav_target, open_new_if_needed=True)
                         new_url = await self.runtime.get_current_url()
+                        if "chrome-error://" in new_url.lower() or "chromewebdata" in new_url.lower():
+                            yield {
+                                "type": "error",
+                                "message": f"Could not reach {nav_target}. Chrome encountered a network or DNS resolution error.",
+                            }
+                            return
+
                         screenshot = await self.runtime.get_screenshot()
                         yield {
                             "type": "observation",
@@ -203,7 +210,10 @@ class AutonomousBrowserAgent:
                 ) or lower_inst in ["linkedin", "github", "google", "youtube", "twitter", "reddit"]
                 has_subsequent_action = any(
                     action_word in lower_inst
-                    for action_word in ["and search", "and click", "and find", "and fill", "and apply"]
+                    for action_word in [
+                        "and search", "and click", "and find", "and fill", "and apply",
+                        "and summarize", "and read", "and inspect", "and extract", "and tell", "and explain"
+                    ]
                 )
                 if is_pure_nav and not has_subsequent_action:
                     page_title = str(await self.runtime.cdp.evaluate("document.title") or "")
@@ -346,32 +356,37 @@ class AutonomousBrowserAgent:
                     return
 
             # 5. Scroll Intent
-            if "scroll down" in lower_inst:
-                scroll_act = BrowserAction(action_type="scroll", scroll_delta_y=600)
-                await self.runtime.execute_step("Scroll down", scroll_act)
+            if any(w in lower_inst for w in ["scroll down", "scroll up", "scroll"]):
+                delta = -600 if "up" in lower_inst else 600
+                scroll_act = BrowserAction(action_type="scroll", scroll_delta_y=delta)
+                await self.runtime.execute_step("Scroll", scroll_act)
                 await asyncio.sleep(0.5)
                 screenshot = await self.runtime.get_screenshot()
                 yield {
                     "type": "observation",
                     "screenshot": screenshot,
-                    "message": "Scrolled viewport down by 600px.",
+                    "message": f"Scrolled viewport {'up' if delta < 0 else 'down'} by {abs(delta)}px.",
                 }
-                yield {"type": "answer", "content": "Scrolled down the page."}
+                yield {"type": "answer", "content": f"Scrolled {'up' if delta < 0 else 'down'} the page."}
                 return
 
             # 6. Read / Summarize / Inspect Intent
             if any(w in lower_inst for w in ["what", "summarize", "read", "extract", "inspect", "show"]):
                 page_title = await self.runtime.cdp.evaluate("document.title")
-                page_h1 = await self.runtime.cdp.evaluate(
-                    "Array.from(document.querySelectorAll('h1, h2, h3')).slice(0, 8).map(el => el.innerText.trim()).filter(Boolean)"
+                page_items = await self.runtime.cdp.evaluate(
+                    """(() => {
+                        const hn = Array.from(document.querySelectorAll('.titleline > a, .storylink')).slice(0, 5).map(a => a.innerText.trim());
+                        if (hn.length > 0) return hn;
+                        return Array.from(document.querySelectorAll('h1, h2, h3')).slice(0, 8).map(el => el.innerText.trim()).filter(Boolean);
+                    })()"""
                 )
                 yield {
                     "type": "answer",
                     "content": (
                         f"### Page Summary: {page_title}\n"
                         f"- **URL**: {current_url}\n"
-                        f"- **Key Headings**:\n"
-                        + "\n".join([f"  * {h}" for h in (page_h1 or [])])
+                        f"- **Key Stories / Headings**:\n"
+                        + "\n".join([f"  * {h}" for h in (page_items or [])])
                         + f"\n- **Interactive Elements Detected**: {len(candidates)} elements ready for automation."
                     ),
                 }
@@ -457,6 +472,13 @@ class AutonomousBrowserAgent:
             if m:
                 query = m.group(1).strip()
                 query = re.sub(r"\s+on\s+[a-zA-Z0-9.-]+$", "", query, flags=re.IGNORECASE).strip()
+                # Strip trailing action clauses (e.g. "and summarize", "and tell me", "and click")
+                query = re.sub(
+                    r"\s+(?:and|then)\s+(?:summarize|tell\s+me|read|extract|click|apply|find).*$",
+                    "",
+                    query,
+                    flags=re.IGNORECASE,
+                ).strip()
                 query = query.rstrip(".,;!? ")
                 # filter out navigation commands
                 if query and not any(query.lower().startswith(x) for x in ["http", "www.", ".com"]):
@@ -522,8 +544,45 @@ class AutonomousBrowserAgent:
                 runtime=self.runtime,
             )
 
+            # 1. Sanity check: Ensure active tab is an actual page, not a login wall
+            cur_url = await self.runtime.get_current_url()
+            page_title = str(await self.runtime.cdp.evaluate("document.title") or "")
+
+            is_login_page = (
+                any(kw in cur_url.lower() for kw in ["/login", "/signin", "/auth", "/checkpoint", "/authwall"])
+                or any(kw in page_title.lower() for kw in ["log in", "sign in", "sign up", "authwall", "login to", "join linkedin"])
+            )
+            if is_login_page:
+                screenshot = await self.runtime.get_screenshot()
+                yield {
+                    "type": "observation",
+                    "url": cur_url,
+                    "screenshot": screenshot,
+                    "message": f"Active page is an authentication or login screen ({page_title}).",
+                }
+                yield {
+                    "type": "error",
+                    "message": (
+                        f"Cannot run @jobpilot auto-apply on a login screen: **{page_title}**.\n\n"
+                        "Please navigate to an active job description page (e.g. on Greenhouse, Lever, Workday, or LinkedIn Jobs) "
+                        "or click **Attach Real Session** to sign in before running career automation."
+                    ),
+                }
+                return
+
             yield {"type": "thought", "content": "Scanning active tab for Job Description & skills..."}
             job, analysis = await pilot.scan_active_role()
+
+            # Verify that the page actually contains job requirements
+            if len(job.required_skills) == 0 and len(job.responsibilities) == 0:
+                yield {
+                    "type": "error",
+                    "message": (
+                        f"Could not identify a job description or technical requirements on this page ({page_title or cur_url}).\n\n"
+                        "Please navigate to an active job posting before running @jobpilot."
+                    ),
+                }
+                return
 
             yield {
                 "type": "observation",

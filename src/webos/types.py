@@ -61,6 +61,7 @@ class BrowserAction:
     file_path: Optional[str] = None
     selector_hint: Optional[str] = None
     key_code: Optional[str] = None
+    scroll_delta_y: int = 0
 
     def validate(self) -> bool:
         if self.value is None and self.text_value is not None:

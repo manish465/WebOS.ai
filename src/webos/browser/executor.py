@@ -44,7 +44,7 @@ class ActionExecutor:
             return await self._upload(cdp, candidate, action.file_path)
 
         elif action.action_type == "scroll":
-            delta_y = int(action.value or "300")
+            delta_y = int(action.scroll_delta_y or action.value or 300)
             return await self._scroll(cdp, delta_y=delta_y)
 
         elif action.action_type == "wait":

@@ -242,8 +242,21 @@ class WebRuntime:
         if not candidates:
             return None
 
-        # 1. Deterministic Fast Path (Exact Name/Role match, 0 tokens)
+        # 1. Deterministic Fast Path (Exact ID or Name match, 0 tokens)
         norm_intent = intent.lower().strip()
+
+        # Check if intent specifies a direct ID like "#3", "candidate 3", or "click 3"
+        import re
+        id_match = re.search(r"\b(?:#|candidate\s*#?|id\s*)?(\d+)\b", norm_intent)
+        if id_match:
+            try:
+                target_num = int(id_match.group(1))
+                for c in candidates:
+                    if c.candidate_id == target_num:
+                        return c
+            except ValueError:
+                pass
+
         for c in candidates:
             if c.name and (norm_intent in c.name.lower() or c.name.lower() in norm_intent):
                 return c
@@ -257,17 +270,21 @@ class WebRuntime:
         )
         try:
             resp = await self.router.query(prompt=prompt, prefer_local=True, allow_cloud=False)
-            digits = "".join(filter(str.isdigit, resp.content))
-            if digits:
-                chosen_id = int(digits)
-                for c in candidates:
-                    if c.candidate_id == chosen_id:
-                        return c
+            if not getattr(resp, "is_fallback", False):
+                clean_content = resp.content.strip()
+                m = re.search(r"^\s*#?\s*(\d+)\s*$", clean_content) or re.search(
+                    r"\b(?:id|candidate|#)?\s*(\d+)\b", clean_content, re.IGNORECASE
+                )
+                if m:
+                    chosen_id = int(m.group(1))
+                    for c in candidates:
+                        if c.candidate_id == chosen_id:
+                            return c
         except Exception as e:
             logger.warning("Grounding model query failed: %s", e)
 
-        # Fallback to first clickable or editable candidate
-        return candidates[0]
+        # Do NOT blindly return candidates[0] to prevent arbitrary clicks on live user sessions!
+        return None
 
     async def execute_step(
         self,
