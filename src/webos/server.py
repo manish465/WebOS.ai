@@ -760,12 +760,12 @@ HTML_UI = """<!DOCTYPE html>
 ### ⚡ Attach Your Real Chrome Session (0 Logins, 0 Isolated Windows)
 To control your current Chrome browser directly with all your personal accounts (LinkedIn, Amazon, Google):
 
-1. Open **\`chrome://extensions\`** in your browser.
+1. Open **chrome://extensions** in your browser.
 2. Enable **Developer mode** in the top right.
 3. Click **Load unpacked** and select:
-   \`${extPath}\`
+   ` + extPath + `
 
-*(Or run \`attach_real_chrome.bat\` in the WebOS folder.)*
+*(Or run attach_real_chrome.bat in the WebOS folder.)*
 Once loaded, WebOS automatically attaches to your active tabs!
       `);
       await fetch('/api/launch_extension_chrome', { method: 'POST' });
