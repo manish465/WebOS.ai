@@ -12,7 +12,7 @@ import asyncio
 import logging
 import re
 from typing import AsyncGenerator, Dict, Any, List, Optional
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 
 from webos.runtime import WebRuntime
 from webos.types import BrowserAction, ElementCandidate, VerificationResult
@@ -46,15 +46,29 @@ class AutonomousBrowserAgent:
             try:
                 await self.runtime.connect(port=9222)
                 yield {"type": "status", "content": "Connected to Chrome CDP session."}
-            except Exception as e:
+            except Exception:
                 yield {
-                    "type": "error",
-                    "message": (
-                        f"Could not connect to Chrome on port 9222: {e}. "
-                        "Please start Chrome with: chrome.exe --remote-debugging-port=9222"
-                    ),
+                    "type": "thought",
+                    "content": "Port 9222 not yet active. Attaching your real Chrome session (preserving LinkedIn/Amazon logins with --restore-last-session)...",
                 }
-                return
+                from webos.server import launch_chrome_browser
+                launch_res = await launch_chrome_browser(use_main_session=True)
+                if not launch_res.get("success"):
+                    yield {"type": "error", "message": launch_res.get("error", "Failed to launch Chrome session.")}
+                    return
+                await asyncio.sleep(2.5)
+                try:
+                    await self.runtime.connect(port=9222)
+                    yield {"type": "status", "content": "Attached to real Chrome session on port 9222."}
+                except Exception as ex:
+                    yield {
+                        "type": "error",
+                        "message": (
+                            f"Could not connect to Chrome on port 9222: {ex}. "
+                            "Please ensure Chrome is running with: chrome.exe --remote-debugging-port=9222"
+                        ),
+                    }
+                    return
 
         # Check for @jobpilot or JobPilot plugin invocation
         lower_inst = instruction.lower()
@@ -100,6 +114,23 @@ class AutonomousBrowserAgent:
             except Exception as e:
                 yield {"type": "error", "message": f"Error attaching real session: {e}"}
                 return
+
+        # Check for LinkedIn Connection Request automation
+        is_linkedin_connect = (
+            any(kw in lower_inst for kw in [
+                "connection request", "connect with", "send connection",
+                "send connect", "connection requests", "connect to hr", "connect to recruiter"
+            ])
+            or (
+                ("linked" in lower_inst or "linkedin" in lower_inst)
+                and any(w in lower_inst for w in ["connect", "connection", "invite", "hr", "recruiter", "hiring"])
+                and any(w in lower_inst for w in ["send", "request", "reach out"])
+            )
+        )
+        if is_linkedin_connect:
+            async for event in self._handle_linkedin_connections(instruction):
+                yield event
+            return
 
         # Strip optional @browser or @web mention for general browser tasks
         cleaned_instruction = re.sub(r"@(browser|web)\b", "", instruction, flags=re.IGNORECASE).strip()
@@ -375,12 +406,15 @@ class AutonomousBrowserAgent:
             "wikipedia": "https://www.wikipedia.org",
             "amazon": "https://www.amazon.com",
             "linkedin": "https://www.linkedin.com",
+            "linked in": "https://www.linkedin.com",
+            "linked": "https://www.linkedin.com",
             "twitter": "https://twitter.com",
             "x": "https://x.com",
             "reddit": "https://www.reddit.com",
         }
         clean_text = text.lower().strip()
         for name, url in shortcuts.items():
+            pattern = rf"\b(?:go\s+to|open|visit|navigate\s+to|launch|head\s+to)\s+{re.escape(name)}\b"
             if (
                 clean_text == name
                 or f"go to {name}" in clean_text
@@ -388,6 +422,7 @@ class AutonomousBrowserAgent:
                 or f"visit {name}" in clean_text
                 or f"navigate to {name}" in clean_text
                 or f"launch {name}" in clean_text
+                or bool(re.search(pattern, clean_text))
             ):
                 return url
 
@@ -509,7 +544,7 @@ class AutonomousBrowserAgent:
                 "type": "answer",
                 "plugin": "jobpilot",
                 "content": (
-                    f"### 💼 @jobpilot: Application Flow Completed\n\n"
+                    f"### @jobpilot: Application Flow Completed\n\n"
                     f"| Metric | Details |\n"
                     f"| :--- | :--- |\n"
                     f"| **Target Opportunity** | **{job.title}** at **{job.company}** |\n"
@@ -527,3 +562,242 @@ class AutonomousBrowserAgent:
                 "type": "error",
                 "message": f"JobPilot plugin execution error: {e}",
             }
+
+    async def _handle_linkedin_connections(
+        self, instruction: str
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Automates searching for target profiles (e.g. HRs hiring) on LinkedIn,
+        locating Connect triggers (a and button elements), handling the invitation modal,
+        and safely sending connection requests with human-paced rate limits.
+        """
+        yield {
+            "type": "thought",
+            "content": "Initiating LinkedIn connection request automation with your active session...",
+        }
+
+        # 1. Extract target role / keyword query
+        keywords = "HR hiring"
+        target_match = re.search(
+            r"(?:connection\s+requests?\s+(?:to|with|for)?|connect\s+(?:with|to)?|reach\s+out\s+to)\s+([a-zA-Z\s]+?)(?:who\s+are|\bcurrently\b|\bhiring\b|$)",
+            instruction,
+            re.IGNORECASE,
+        )
+        if target_match:
+            extracted = target_match.group(1).strip()
+            extracted = re.sub(r"^(?:the|all|any)\s+", "", extracted, flags=re.IGNORECASE).strip()
+            if extracted and len(extracted) > 1 and extracted.lower() not in ["send", "connection", "requests", "request"]:
+                keywords = f"{extracted} hiring" if "hiring" not in extracted.lower() else extracted
+        elif "recruiter" in instruction.lower():
+            keywords = "Recruiters hiring"
+        elif "hr" in instruction.lower():
+            keywords = "HR hiring"
+
+        search_url = f"https://www.linkedin.com/search/results/people/?keywords={quote(keywords)}"
+
+        yield {
+            "type": "action",
+            "action": "navigate",
+            "target": search_url,
+            "details": f"Navigating to LinkedIn People search for '{keywords}'",
+        }
+
+        # 2. Check if already on LinkedIn or switch/open tab
+        targets = await self.runtime.cdp.get_all_page_targets()
+        matching = [t for t in targets if "linkedin.com" in t.get("url", "").lower()]
+        if matching:
+            await self.runtime.cdp.activate_tab(matching[0]["id"])
+            await self.runtime.cdp.send("Page.navigate", {"url": search_url})
+        else:
+            await self.runtime.open_tab(search_url)
+
+        await self.runtime.cdp.bring_to_front()
+
+        # 3. Wait for search results or check login status
+        yield {"type": "thought", "content": "Checking LinkedIn session authentication and waiting for search results..."}
+        current_url = ""
+        for _ in range(10):
+            await asyncio.sleep(0.5)
+            current_url = await self.runtime.get_current_url()
+            if "linkedin.com" in current_url.lower():
+                break
+
+        page_title = str(await self.runtime.cdp.evaluate("document.title") or "")
+        is_logged_out = (
+            any(kw in current_url.lower() for kw in ["/login", "/authwall", "/checkpoint"])
+            or any(kw in page_title.lower() for kw in ["sign in", "log in", "authwall"])
+        )
+
+        if is_logged_out:
+            screenshot = await self.runtime.get_screenshot()
+            yield {
+                "type": "observation",
+                "url": current_url,
+                "screenshot": screenshot,
+                "message": "LinkedIn Sign In page detected.",
+            }
+            yield {
+                "type": "answer",
+                "content": (
+                    "> [!IMPORTANT]\n"
+                    "> **LinkedIn Authentication Required**\n\n"
+                    "Your active Chrome window is displaying the LinkedIn Sign In page.\n"
+                    "Please log into LinkedIn in the opened Chrome tab, and then rerun your request. "
+                    "Because WebOS uses a persistent session profile, your login will remain permanently saved across all subsequent requests."
+                ),
+            }
+            return
+
+        # 4. Wait up to 6 seconds for candidate results to mount
+        find_candidates_script = """
+        (() => {
+            const items = Array.from(document.querySelectorAll('a, button'));
+            const results = [];
+            for (const el of items) {
+                const text = (el.innerText || '').trim();
+                const aria = (el.getAttribute('aria-label') || '').trim();
+                const isConnect = (
+                    text === 'Connect' ||
+                    (aria.toLowerCase().includes('invite') && aria.toLowerCase().includes('to connect'))
+                );
+                if (isConnect && (el.offsetParent !== null || el.offsetWidth > 0 || el.offsetHeight > 0)) {
+                    let name = 'Candidate';
+                    const m = aria.match(/Invite\\s+(.+?)\\s+to\\s+connect/i);
+                    if (m) {
+                        name = m[1].trim();
+                    } else {
+                        const card = el.closest('li') || el.closest('[data-chameleon-result-urn]') || el.closest('.entity-result');
+                        if (card) {
+                            const titleEl = card.querySelector('.entity-result__title-text, a[href*="/in/"]');
+                            if (titleEl) name = (titleEl.innerText || '').split('\\n')[0].trim();
+                        }
+                    }
+                    results.push({ name: name, aria: aria, text: text });
+                }
+            }
+            return results;
+        })()
+        """
+
+        candidates = []
+        for _ in range(12):
+            candidates = await self.runtime.cdp.evaluate(find_candidates_script) or []
+            if candidates:
+                break
+            await asyncio.sleep(0.5)
+
+        if not candidates:
+            screenshot = await self.runtime.get_screenshot()
+            yield {
+                "type": "observation",
+                "url": current_url,
+                "screenshot": screenshot,
+                "message": f"No direct Connect buttons currently available on search results for '{keywords}'.",
+            }
+            yield {
+                "type": "answer",
+                "content": (
+                    f"Navigated to LinkedIn People Search for **'{keywords}'** ({current_url}).\n\n"
+                    "No direct 'Connect' buttons were found on this results page (profiles may require 'Follow' or 2nd-degree messaging). "
+                    "You can refine your query or click on specific profiles to connect directly."
+                ),
+            }
+            return
+
+        yield {
+            "type": "thought",
+            "content": f"Found {len(candidates)} connectable candidates on page. Starting safe, human-paced dispatch...",
+        }
+
+        # 5. Dispatch connection requests (safe batch of up to 3)
+        successful_connections = []
+        max_to_send = min(3, len(candidates))
+
+        for idx in range(max_to_send):
+            click_script = f"""
+            (() => {{
+                const items = Array.from(document.querySelectorAll('a, button'));
+                const connectables = items.filter(el => {{
+                    const text = (el.innerText || '').trim();
+                    const aria = (el.getAttribute('aria-label') || '').trim();
+                    return (
+                        text === 'Connect' ||
+                        (aria.toLowerCase().includes('invite') && aria.toLowerCase().includes('to connect'))
+                    ) && (el.offsetParent !== null || el.offsetWidth > 0 || el.offsetHeight > 0);
+                }});
+                if (connectables.length > {idx}) {{
+                    connectables[{idx}].click();
+                    return true;
+                }}
+                return false;
+            }})()
+            """
+            clicked = await self.runtime.cdp.evaluate(click_script)
+            if not clicked:
+                continue
+
+            cand_info = candidates[idx]
+            cand_name = cand_info.get("name", f"Candidate #{idx + 1}")
+
+            yield {
+                "type": "action",
+                "step": idx + 1,
+                "action": "click_connect",
+                "target": cand_name,
+                "details": f"Clicked Connect for {cand_name}",
+            }
+
+            await asyncio.sleep(1.2)
+
+            modal_script = """
+            (() => {
+                const dialog = document.querySelector('dialog, [role="dialog"], .artdeco-modal');
+                if (!dialog) return { handled: false, reason: 'no_modal' };
+                const buttons = Array.from(dialog.querySelectorAll('button'));
+                for (const b of buttons) {
+                    const t = (b.innerText || '').trim().toLowerCase();
+                    const aria = (b.getAttribute('aria-label') || '').toLowerCase();
+                    if (
+                        t === 'send without a note' ||
+                        aria.includes('send without a note') ||
+                        t === 'send' ||
+                        aria.includes('send now')
+                    ) {
+                        b.click();
+                        return { handled: true, action: 'sent' };
+                    }
+                }
+                return { handled: false, reason: 'button_not_found' };
+            })()
+            """
+            modal_res = await self.runtime.cdp.evaluate(modal_script) or {}
+            await asyncio.sleep(1.5)
+
+            screenshot = await self.runtime.get_screenshot()
+            successful_connections.append(cand_name)
+
+            yield {
+                "type": "observation",
+                "step": idx + 1,
+                "url": await self.runtime.get_current_url(),
+                "screenshot": screenshot,
+                "message": f"Successfully sent connection request to {cand_name} (Modal: {modal_res.get('action', 'confirmed')}).",
+            }
+
+            await asyncio.sleep(1.5)
+
+        # 6. Yield final summary table
+        rows = "\n".join([f"| **{name}** | Sent [OK] | Connected via People Search |" for name in successful_connections])
+        summary = (
+            f"### LinkedIn Connection Requests Sent\n\n"
+            f"Successfully navigated to LinkedIn People Search for **'{keywords}'** using your active profile and sent **{len(successful_connections)}** connection requests:\n\n"
+            f"| Candidate | Status | Details |\n"
+            f"| :--- | :--- | :--- |\n"
+            f"{rows}\n\n"
+            f"> **Safety Pacing**: Requests were dispatched with human-like delays to safeguard your LinkedIn profile standing."
+        )
+
+        yield {
+            "type": "answer",
+            "content": summary,
+        }

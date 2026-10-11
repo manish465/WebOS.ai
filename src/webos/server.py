@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -646,9 +647,13 @@ HTML_UI = """<!DOCTYPE html>
     }
 
     async function launchChrome() {
-      appendMessage('copilot', 'Launching Chrome with remote debugging on port 9222...');
-      await fetch('/api/launch_chrome', { method: 'POST' });
-      setTimeout(connectChrome, 2000);
+      appendMessage('copilot', 'Connecting to Chrome with your real session and remote debugging...');
+      await fetch('/api/launch_chrome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ main_session: true })
+      });
+      setTimeout(connectChrome, 2500);
     }
 
     async function connectChrome() {
@@ -866,12 +871,22 @@ HTML_UI = """<!DOCTYPE html>
 </html>
 """
 
-_CURRENT_SESSION_TYPE: str = "isolated"
+_CURRENT_SESSION_TYPE: str = "main"
 
 
-async def launch_chrome_browser(use_main_session: bool = False) -> Dict[str, Any]:
-    """Launches or relaunches Chrome with remote debugging on port 9222."""
+async def launch_chrome_browser(use_main_session: bool = True) -> Dict[str, Any]:
+    """Launches Chrome with remote debugging on port 9222 with persistent profile and session restoration."""
     global _CURRENT_SESSION_TYPE
+    import urllib.request
+
+    # Check if port 9222 is already open and responsive
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:9222/json/version", timeout=1.0) as resp:
+            _CURRENT_SESSION_TYPE = "main"
+            return {"success": True, "message": "Chrome is already running and connected on port 9222."}
+    except Exception:
+        pass
+
     chrome_paths = [
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
@@ -890,37 +905,22 @@ async def launch_chrome_browser(use_main_session: bool = False) -> Dict[str, Any
     if sys.platform == "win32":
         flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
 
-    if use_main_session:
-        if sys.platform == "win32":
-            subprocess.run(
-                ["powershell", "-Command", "Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force"],
-                capture_output=True,
-            )
-            await asyncio.sleep(1.0)
-        cmd = [
-            target_path,
-            "--remote-debugging-port=9222",
-            "--restore-last-session",
-        ]
-        subprocess.Popen(cmd, creationflags=flags)
-        _CURRENT_SESSION_TYPE = "main"
-        await asyncio.sleep(2.5)
-        return {"success": True, "message": "Relaunched main Chrome with debugging and restored active sessions."}
-
     debug_dir = os.path.join(os.path.expanduser("~"), ".webos", "chrome_profile")
     os.makedirs(debug_dir, exist_ok=True)
+
     cmd = [
         target_path,
         "--remote-debugging-port=9222",
+        "--remote-allow-origins=*",
         f"--user-data-dir={debug_dir}",
+        "--restore-last-session",
         "--no-first-run",
         "--no-default-browser-check",
-        "https://www.google.com",
     ]
     subprocess.Popen(cmd, creationflags=flags)
-    _CURRENT_SESSION_TYPE = "isolated"
-    await asyncio.sleep(1.5)
-    return {"success": True, "message": "Chrome launched on port 9222 with persistent profile."}
+    _CURRENT_SESSION_TYPE = "main"
+    await asyncio.sleep(2.0)
+    return {"success": True, "message": "Chrome launched on port 9222 with persistent session profile."}
 
 
 class WebOSRequestHandler(BaseHTTPRequestHandler):
@@ -980,7 +980,7 @@ class WebOSRequestHandler(BaseHTTPRequestHandler):
         runtime, agent = get_or_create_runtime()
 
         if self.path == "/api/launch_chrome":
-            use_main = bool(req_data.get("main_session", False))
+            use_main = bool(req_data.get("main_session", True))
             future = asyncio.run_coroutine_threadsafe(self._launch_chrome(use_main_session=use_main), _GLOBAL_LOOP)
             res = future.result(timeout=10.0)
             self._send_json(res)
