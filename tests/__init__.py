@@ -1,3 +1,0 @@
-"""
-WebOS.ai test suite.
-"""

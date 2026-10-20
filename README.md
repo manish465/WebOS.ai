@@ -1,55 +1,71 @@
-# WebOS.ai
+# WebOS.ai (v2 Architecture)
 
-> **Autonomous, Hardware-Aware Browser Operating Substrate**
-
-WebOS.ai is a decoupled, task-agnostic browser runtime. It provides deterministic Chrome DevTools Protocol (CDP) control, zero-token accessibility tree perception, local SQLite episodic memory, and a resilient, privacy-preserving LLM gateway.
-
-📖 **For detailed usage patterns, code examples, and architecture guides, see [USAGE_GUIDE.md](USAGE_GUIDE.md).**
+> **Local-First, Domain-Neutral Browser Automation Runtime**  
+> *Specification-First Architecture & Design Documentation*
 
 ---
 
-## Architecture Overview
+## 📌 Overview
+
+**WebOS.ai** is a high-reliability, local-first browser automation engine engineered in **Rust, Tauri v2, React 19, and TypeScript**. It provides:
+1. **Deterministic Execution**: Zero-token accessibility perception, typed action primitives, and explicit postcondition verification.
+2. **Independent Policy Enforcement**: Hard safety gates that intercept irreversible actions (e.g. form submissions, financial transactions) and prevent unauthorized script injection.
+3. **Model Intelligence Layer**: Standalone subsystem managing OS-keychain provider credentials, rate-limit quotas, adaptive task routing, exact-response caching, and learned field mappings.
+4. **Durable Telemetry & Flight Recorder**: Append-only SQLite audit log recording every observation, policy decision, action receipt, and verified outcome.
+5. **Private Plugin Architecture**: Strict separation of concerns where all domain-specific logic (e.g., job applications, career dossier parsing, LaTeX resume compilation, and ATS workflows) lives exclusively in the private **WorkKnightBot** plugin.
+
+---
+
+## 📚 Specification Package Index
+
+The project follows a **strict specification-first engineering methodology**. No implementation code is written until product ideation, technical contracts, and security boundaries are reviewed and frozen.
+
+| Document | Focus Area | Status |
+|---|---|:---:|
+| [01. Product Charter](docs/spec/01_PRODUCT_CHARTER.md) | Vision, 3-layer system boundaries, primary use cases, non-goals | `LOCKED` |
+| [02. System Architecture](docs/spec/02_SYSTEM_ARCHITECTURE.md) | Process topology, browser adapters, secure loopback IPC, trust boundaries | `LOCKED` |
+| [03. Implementation Contracts](docs/spec/03_IMPLEMENTATION_CONTRACTS.md) | Typed actions, perception schema, policy contracts, plugin interface, telemetry | `LOCKED` |
+| [04. Model Intelligence Spec](docs/spec/04_MODEL_INTELLIGENCE_SPEC.md) | OS keyring, quota tracking, adaptive routing utility, exact & mapping caches | `LOCKED` |
+| [05. Security & Reliability Spec](docs/spec/05_SECURITY_AND_RELIABILITY_SPEC.md) | Threat model, DOM prompt injection defense, PII air-gap, emergency pause | `LOCKED` |
+| [06. Test & Acceptance Plan](docs/spec/06_TEST_AND_ACCEPTANCE_PLAN.md) | 5-level testing pyramid, synthetic DOM fixtures, measurable acceptance criteria | `LOCKED` |
+| [07. Migration & Learning Plan](docs/spec/07_MIGRATION_AND_LEARNING_PLAN.md) | Python prototype audit, phased 7-milestone Rust implementation roadmap | `LOCKED` |
+
+---
+
+## 🏗️ Proposed Workspace Layout
 
 ```
-                      Client / Domain Plugin (e.g., JobPilot.ai)
-                                         │
-                                         ▼
-                            WebRuntime (src/runtime.py)
-                                         │
-        ┌────────────────────────────────┼────────────────────────────────┐
-        ▼                                ▼                                ▼
-  Browser Engine                  Storage Subsystem                 Model Gateway
-  • CDP Client (port 9222)        • Local SQLite (runtime.db)       • PII Air-Gap Sanitizer
-  • 0-Token AXTree Pruner         • Episodic Observation Logs       • Rate-Limit Key Ring
-  • Action Executor Primitives    • Flight Recorder & Telemetry     • Local 3B Grounder
-  • Tier-1 & Tier-2 Verifier                                        • Free Cloud Pool (Gemini/Groq)
-  • Shadow DOM HUD Overlay                                          • 1-Click Clipboard Fallback
+WebOS.ai/
+├── docs/
+│   └── spec/                 # Formal product and technical specifications (v1.0.0)
+│       ├── 01_PRODUCT_CHARTER.md
+│       ├── 02_SYSTEM_ARCHITECTURE.md
+│       ├── 03_IMPLEMENTATION_CONTRACTS.md
+│       ├── 04_MODEL_INTELLIGENCE_SPEC.md
+│       ├── 05_SECURITY_AND_RELIABILITY_SPEC.md
+│       ├── 06_TEST_AND_ACCEPTANCE_PLAN.md
+│       └── 07_MIGRATION_AND_LEARNING_PLAN.md
+├── crates/                   # Rust Core Workspace (Cargo)
+│   ├── webos-types/          # Typed actions, schemas, Serde contracts
+│   ├── webos-policy/         # Deterministic policy engine & confirmation rules
+│   ├── webos-browser/        # Unified BrowserAdapter trait & perception logic
+│   ├── webos-adapter-ext/    # Chrome Extension authenticated IPC bridge
+│   ├── webos-adapter-pw/     # Dedicated browser persistent profile adapter
+│   ├── webos-storage/        # SQLite migrations, episodic logs, mappings cache
+│   ├── webos-telemetry/      # Flight recorder & structured audit events
+│   ├── webos-model/          # Model registry, OS keyring, router, quota tracker
+│   └── webos-plugin-sdk/     # Plugin traits & FFI contracts
+├── extension/                # Manifest V3 Chrome Extension (TypeScript)
+├── src-tauri/                # Desktop Application Shell (Tauri v2)
+├── src/                      # Desktop UI (React 19 + TypeScript + Tailwind)
+└── tests/                    # Synthetic DOM fixtures & automated test harness
 ```
 
 ---
 
-## Quickstart
+## 🛡️ Core Architectural Principles
 
-### 1. Prerequisites
-* Python 3.11+
-* Google Chrome (running with `--remote-debugging-port=9222`)
-* Optional: Local Ollama running Llama 3.2 3B
-
-### 2. Installation
-```bash
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-pip install -e ".[dev]"
-```
-
-### 3. Launch the Interactive Chat UI (Recommended)
-Double-click `start-webos.bat` or run:
-```powershell
-.\start-webos.ps1
-```
-This opens the WebOS Chat Window at **`http://localhost:8080`** with live browser view, perception inspector, and conversational command bar.
-
-### 4. Run Verification Tests
-```bash
-pytest -v
-```
+1. **Deterministic Where Possible**: Zero-token accessibility tree parsing ($< 50\text{ ms}$), exact cached responses, and learned field mappings are always prioritized over costly LLM inference.
+2. **Never Trust the Page**: DOM labels, page scripts, and external text are treated as untrusted input. The policy engine guarantees that no arbitrary JavaScript generated by an LLM is ever executed.
+3. **No Blind Submissions**: Irreversible actions (`submit`, `pay`, `delete`) must pass through the desktop control plane's confirmation gate.
+4. **Air-Gapped PII**: Sensitive credentials and personal information are masked locally with `<USER_TOKEN>` placeholders before cloud dispatch, then re-hydrated in memory immediately prior to browser typing.

@@ -1,0 +1,27 @@
+[package]
+name = "webos-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+webos-types = { path = "../webos-types" }
+webos-storage = { path = "../webos-storage" }
+webos-policy = { path = "../webos-policy" }
+webos-verifier = { path = "../webos-verifier" }
+webos-browser = { path = "../webos-browser" }
+webos-model = { path = "../webos-model" }
+webos-adapter-ext = { path = "../webos-adapter-ext" }
+webos-plugin-sdk = { path = "../webos-plugin-sdk" }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+[dev-dependencies]
