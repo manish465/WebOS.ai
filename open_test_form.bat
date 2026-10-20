@@ -1,0 +1,3 @@
+@echo off
+echo Opening Greenhouse Job Application Test Fixture in Chrome...
+start chrome "file:///D:/DEVLOPMENT/Projects/WebOS.ai/tests/fixtures/greenhouse_job_application.html"
