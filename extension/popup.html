@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WebOS.ai Companion</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card: #151c2c;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --border: #1f293d;
+      --success: #10b981;
+    }
+    body {
+      width: 320px;
+      margin: 0;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      user-select: none;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo {
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: -0.3px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      background: var(--card);
+      border: 1px solid var(--border);
+    }
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+    }
+    .dot.offline {
+      background: #ef4444;
+    }
+    .btn {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 8px;
+      background: var(--primary);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover {
+      background: var(--primary-hover);
+    }
+    .btn-secondary {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-secondary:hover {
+      background: #1e283d;
+    }
+    .stats-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 12px;
+      font-size: 12px;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      color: var(--text-muted);
+    }
+    .stat-row:last-child {
+      margin-bottom: 0;
+    }
+    .stat-val {
+      color: var(--text);
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">WebOS.ai <span style="color: var(--primary)">Companion</span></div>
+    <div class="badge">
+      <span class="dot" id="status-dot"></span>
+      <span id="status-text">Desktop Ready</span>
+    </div>
+  </div>
+
+  <button class="btn" id="btn-fill">⚡ Fill Active Form</button>
+  <button class="btn btn-secondary" id="btn-inspect">🔍 Inspect Page Elements</button>
+
+  <div class="stats-card">
+    <div class="stat-row">
+      <span>Detected Controls</span>
+      <span class="stat-val" id="stat-controls">-</span>
+    </div>
+    <div class="stat-row">
+      <span>Required Fields</span>
+      <span class="stat-val" id="stat-required">-</span>
+    </div>
+    <div class="stat-row">
+      <span>Zero-Token Perception</span>
+      <span class="stat-val" style="color: var(--success)">&lt; 50ms (0 tok)</span>
+    </div>
+  </div>
+
+  <script type="module" src="dist/popup.js"></script>
+</body>
+</html>

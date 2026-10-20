@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "WebOS.ai Companion",
+  "version": "2.0.0",
+  "description": "Local-first assistive browser automation companion for WebOS.ai.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "dist/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["dist/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "WebOS.ai Automation Control"
+  }
+}

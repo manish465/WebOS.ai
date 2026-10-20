@@ -1,0 +1,13 @@
+{
+  "name": "webos-chrome-extension",
+  "version": "2.0.0",
+  "description": "WebOS.ai Browser Companion (Manifest V3)",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "typescript": "^5.4.5"
+  }
+}
