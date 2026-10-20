@@ -9,6 +9,7 @@ members = [
     "crates/webos-adapter-ext",
     "crates/webos-plugin-sdk",
     "crates/webos-core",
+    "src-tauri",
 ]
 resolver = "2"
 
