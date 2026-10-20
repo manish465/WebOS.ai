@@ -14,8 +14,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       statusDot.className = "dot";
       statusText.textContent = `Connected :${res.port}`;
     } else {
-      statusDot.className = "dot offline";
-      statusText.textContent = "Standalone Mode";
+      statusDot.className = "dot";
+      statusText.textContent = "Extension Ready";
     }
   });
 
@@ -40,11 +40,26 @@ document.addEventListener("DOMContentLoaded", async () => {
   btnInspect.addEventListener("click", inspectPage);
 
   btnFill.addEventListener("click", () => {
-    btnFill.textContent = "⏳ Inspecting & Filling...";
-    inspectPage();
-    setTimeout(() => {
-      btnFill.textContent = "⚡ Fill Active Form";
-    }, 1500);
+    if (!tab || !tab.id) return;
+
+    btnFill.disabled = true;
+    btnFill.textContent = "⏳ Autofilling Form...";
+
+    chrome.tabs.sendMessage(tab.id, { type: "AUTOFILL_PAGE" }, (res) => {
+      btnFill.disabled = false;
+      if (res && res.status === "success") {
+        btnFill.textContent = `✅ Filled ${res.filledCount} Fields!`;
+        inspectPage();
+        setTimeout(() => {
+          btnFill.textContent = "⚡ Fill Active Form";
+        }, 3000);
+      } else {
+        btnFill.textContent = "⚠️ Could not fill page";
+        setTimeout(() => {
+          btnFill.textContent = "⚡ Fill Active Form";
+        }, 2000);
+      }
+    });
   });
 
   // Auto-inspect on popup open

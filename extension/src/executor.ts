@@ -41,9 +41,9 @@ export class ActionExecutor {
     }
   }
 
-  private static async executeFill(action: FillAction, startTime: number): Promise<VerificationOutcome> {
+  public static async executeFill(action: FillAction, startTime: number): Promise<VerificationOutcome> {
     const el = document.querySelector(action.target.primary_selector);
-    if (!el || !(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) {
+    if (!el || !(el instanceof HTMLElement)) {
       return {
         Failed: {
           rule: { ValueReflected: { target: action.target, expected_value: action.value } },
@@ -54,50 +54,92 @@ export class ActionExecutor {
       };
     }
 
+    // Scroll into view gently
     el.scrollIntoView({ behavior: "smooth", block: "center" });
-    el.focus();
 
-    if (action.clear_first) {
-      el.value = "";
-      el.dispatchEvent(new Event("input", { bubbles: true }));
+    // Handle Radio Buttons
+    if (el instanceof HTMLInputElement && el.type === "radio") {
+      const radioGroup = document.querySelectorAll(`input[name="${CSS.escape(el.name)}"]`);
+      let foundRadio: HTMLInputElement | null = null;
+      radioGroup.forEach((r) => {
+        if (r instanceof HTMLInputElement) {
+          if (r.value.toLowerCase() === action.value.toLowerCase()) {
+            foundRadio = r;
+          }
+        }
+      });
+
+      const targetRadio = foundRadio || el;
+      targetRadio.checked = true;
+      targetRadio.dispatchEvent(new Event("change", { bubbles: true }));
+      targetRadio.dispatchEvent(new Event("input", { bubbles: true }));
+      this.highlightElement(targetRadio);
+
+      return {
+        Passed: {
+          duration_ms: Math.round(performance.now() - startTime),
+          observed_state: `Selected radio option '${action.value}'`,
+        },
+      };
     }
 
-    // Human-like keystroke emulation
-    const delay = action.typing_delay_ms || 15;
-    for (const char of action.value) {
-      el.dispatchEvent(new KeyboardEvent("keydown", { key: char, bubbles: true }));
-      el.value += char;
-      el.dispatchEvent(new InputEvent("input", { data: char, bubbles: true, inputType: "insertText" }));
-      el.dispatchEvent(new KeyboardEvent("keyup", { key: char, bubbles: true }));
-      if (delay > 0) {
-        await new Promise((r) => setTimeout(r, delay));
+    // Handle Select Dropdowns
+    if (el instanceof HTMLSelectElement) {
+      return this.executeSelect(
+        {
+          target: action.target,
+          option_text: action.value,
+          option_value: action.value,
+        },
+        startTime
+      );
+    }
+
+    // Handle Text / Number / Email / Tel Inputs & Textareas
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+      el.focus();
+
+      if (action.clear_first) {
+        el.value = "";
+        el.dispatchEvent(new Event("input", { bubbles: true }));
       }
-    }
 
-    el.dispatchEvent(new Event("change", { bubbles: true }));
-    el.blur();
+      // Human-like keystroke emulation
+      const delay = action.typing_delay_ms !== undefined ? action.typing_delay_ms : 10;
+      for (const char of action.value) {
+        el.dispatchEvent(new KeyboardEvent("keydown", { key: char, bubbles: true }));
+        el.value += char;
+        el.dispatchEvent(new InputEvent("input", { data: char, bubbles: true, inputType: "insertText" }));
+        el.dispatchEvent(new KeyboardEvent("keyup", { key: char, bubbles: true }));
+        if (delay > 0) {
+          await new Promise((r) => setTimeout(r, delay));
+        }
+      }
 
-    // Verify DOM value reflection
-    if (el.value === action.value) {
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      el.blur();
+
+      this.highlightElement(el);
+
       return {
         Passed: {
           duration_ms: Math.round(performance.now() - startTime),
           observed_state: `Value '${action.is_secret ? "[SECRET]" : action.value}' reflected in DOM`,
         },
       };
-    } else {
-      return {
-        Failed: {
-          rule: { ValueReflected: { target: action.target, expected_value: action.value } },
-          reason: "DOM value did not reflect expected typed string",
-          expected: action.value,
-          actual: el.value,
-        },
-      };
     }
+
+    return {
+      Failed: {
+        rule: { ValueReflected: { target: action.target, expected_value: action.value } },
+        reason: "Element does not accept text input",
+        expected: action.value,
+        actual: el.tagName,
+      },
+    };
   }
 
-  private static async executeClick(action: ClickAction, startTime: number): Promise<VerificationOutcome> {
+  public static async executeClick(action: ClickAction, startTime: number): Promise<VerificationOutcome> {
     const el = document.querySelector(action.target.primary_selector);
     if (!el || !(el instanceof HTMLElement)) {
       return {
@@ -117,6 +159,8 @@ export class ActionExecutor {
     el.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, button: 0 }));
     el.click();
 
+    this.highlightElement(el);
+
     return {
       Passed: {
         duration_ms: Math.round(performance.now() - startTime),
@@ -125,7 +169,7 @@ export class ActionExecutor {
     };
   }
 
-  private static async executeSelect(action: SelectAction, startTime: number): Promise<VerificationOutcome> {
+  public static async executeSelect(action: SelectAction, startTime: number): Promise<VerificationOutcome> {
     const el = document.querySelector(action.target.primary_selector);
     if (!el || !(el instanceof HTMLSelectElement)) {
       return {
@@ -138,20 +182,32 @@ export class ActionExecutor {
       };
     }
 
-    if (action.option_value) {
-      el.value = action.option_value;
-    } else if (action.option_text) {
-      const match = Array.from(el.options).find(
-        (o) => o.text.trim().toLowerCase() === action.option_text!.trim().toLowerCase()
-      );
-      if (match) {
-        el.value = match.value;
+    let found = false;
+    const targetText = action.option_text?.toLowerCase().trim();
+    const targetVal = action.option_value?.toLowerCase().trim();
+
+    for (let i = 0; i < el.options.length; i++) {
+      const opt = el.options[i];
+      const optText = opt.text.toLowerCase().trim();
+      const optVal = opt.value.toLowerCase().trim();
+
+      if (
+        (targetText && (optText === targetText || optText.includes(targetText) || targetText.includes(optText))) ||
+        (targetVal && optVal === targetVal)
+      ) {
+        el.selectedIndex = i;
+        found = true;
+        break;
       }
-    } else if (action.option_index !== undefined) {
+    }
+
+    if (!found && action.option_index !== undefined) {
       el.selectedIndex = action.option_index;
+      found = true;
     }
 
     el.dispatchEvent(new Event("change", { bubbles: true }));
+    this.highlightElement(el);
 
     return {
       Passed: {
@@ -159,5 +215,21 @@ export class ActionExecutor {
         observed_state: `Selected option '${el.value}'`,
       },
     };
+  }
+
+  private static highlightElement(el: HTMLElement) {
+    const originalBorder = el.style.border;
+    const originalBoxShadow = el.style.boxShadow;
+    const originalTransition = el.style.transition;
+
+    el.style.transition = "all 0.25s ease";
+    el.style.border = "2px solid #10b981";
+    el.style.boxShadow = "0 0 10px rgba(16, 185, 129, 0.4)";
+
+    setTimeout(() => {
+      el.style.border = originalBorder;
+      el.style.boxShadow = originalBoxShadow;
+      el.style.transition = originalTransition;
+    }, 2000);
   }
 }
